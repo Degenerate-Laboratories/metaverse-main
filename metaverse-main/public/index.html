@@ -11,8 +11,8 @@
 </head>
 
 <body>
-   <div id="unity-container" class="unity-desktop" style="width: 100vw; height: 100vh; overflow: hidden;">
-      <canvas id="unity-canvas"></canvas>
+   <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas" width=960 height=600></canvas>
       <div id="unity-loading-bar">
         <div id="unity-logo"></div>
         <div id="unity-progress-bar-empty">
@@ -67,7 +67,7 @@
            frameworkUrl: buildUrl + "/public.framework.js",
            codeUrl: buildUrl + "/public.wasm",
            streamingAssetsUrl: "StreamingAssets",
-           companyName: "DefaultCompany",
+           companyName: "ClubMoon",
            productName: "ClubMoon",
            productVersion: "0.1",
 	       showBanner: unityShowBanner,
@@ -87,7 +87,7 @@
         // Avoid draining fillrate performance on mobile devices,
         // and default/override low DPI mode on mobile browsers.
         config.devicePixelRatio = 1;
-        unityShowBanner('Clubmoon is not fully supported on mobile devices yet.');
+        unityShowBanner('WebGL builds are not supported on mobile devices.');
       } else {
          canvas.style.width = "100vw";
         canvas.style.height = "100vh";
