@@ -354,3 +354,22 @@ window.onload = (e) => {
 	return checkTransactionLoop();
   }
 
+function checkForDeepLinkResponse() {
+    var url = window.location.href;
+    if (url.includes('onPhantomConnected') || url.includes('transactionSigned') || url.includes('messageSigned')) {
+        // Send the URL to Unity
+        if (window.unityInstance != null) {
+            window.unityInstance.SendMessage('PhantomDeepLinkReceiver', 'ReceiveDeepLinkUrl', url);
+        }
+
+        // Optionally, remove the parameters from the URL to clean it up
+        history.replaceState(null, '', window.location.pathname);
+    }
+}
+
+window.addEventListener('load', function() {
+    // Existing code...
+
+    // Call the function on load to check for deep link responses
+    checkForDeepLinkResponse();
+});
