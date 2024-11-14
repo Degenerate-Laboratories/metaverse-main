@@ -7,7 +7,7 @@ var app      = express();// create an object of the express module
 var http     = require('http').Server(app);// create a http web server using the http library
 var io       = require('socket.io')(http);// import socketio communication module
 const { v4: uuidv4 } = require('uuid');
-
+var path = require('path');
 
 const cors=require("cors");
 const corsOptions ={
@@ -20,7 +20,59 @@ app.use(cors(corsOptions)) // Use this after the variable declaration
 
 app.use("/public/TemplateData",express.static(__dirname + "/public/TemplateData"));
 app.use("/public/Build",express.static(__dirname + "/public/Build"));
-app.use(express.static(__dirname+'/public'));
+//app.use(express.static(__dirname+'/public'));
+
+
+
+app.use(express.static(path.join(__dirname, 'public'), {
+//	maxAge: '5d',
+	setHeaders: setCustomCacheControl
+  }))
+  
+  
+  function setCustomCacheControl(res, path) {
+  
+	let lastIndex = path.lastIndexOf('.');
+	const lastItem = path.substring(lastIndex + 1)
+	let isJsFile = (path.substring(lastIndex - 2) == "js.br")
+  console.log("lastItem: "+lastItem);
+  
+	if (lastItem == "br")
+		{
+		  if (isJsFile)
+		   res.setHeader('Content-Type', 'application/javascript')
+		 else
+		   res.setHeader('Content-Type', 'application/wasm')
+		}
+	else if (lastItem == "gz")
+		{
+		 res.setHeader('Content-Type', 'application/wasm')
+	    }
+
+
+	//if (lastItem == "wasm")
+	  //res.setHeader('Content-Type', 'application/wasm')
+  
+	if (lastItem == "br")
+	  res.setHeader('Content-Encoding', 'br')
+  
+	if (lastItem == "gz")
+	  res.setHeader('Content-Encoding', 'gzip')
+  
+	  if (lastItem == "json" || lastItem == "hash")
+	   res.setHeader('Cache-Control', 'public, max-age=0')
+  
+  
+	  if (express.static.mime.lookup(path) === 'text/html' || express.static.mime.lookup(path) === 'application/xml' ) {
+		// Custom Cache-Control for HTML files
+		res.setHeader('Cache-Control', 'public, max-age=0')
+	  }
+	
+  
+  }
+  
+
+
 
 var clients			= [];// to storage clients
 var clientLookup = {};// clients search engine
