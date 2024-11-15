@@ -34,7 +34,7 @@ function setCustomCacheControl(res, path) {
 
 	let lastIndex = path.lastIndexOf('.');
 	const lastItem = path.substring(lastIndex + 1)
-	let isJsFile = (path.substring(lastIndex - 2) == "js.br")
+	let isJsFile = (path.substring(lastIndex - 2) == "js.br") || (path.substring(lastIndex - 2) == "js.gz");
 	console.log("lastItem: " + lastItem);
 
 	if (lastItem == "br") {
