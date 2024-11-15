@@ -44,6 +44,9 @@ function setCustomCacheControl(res, path) {
 			res.setHeader('Content-Type', 'application/wasm')
 	}
 	else if (lastItem == "gz") {
+		if (isJsFile)
+			res.setHeader('Content-Type', 'application/javascript')
+		else
 		res.setHeader('Content-Type', 'application/wasm')
 	}
 
