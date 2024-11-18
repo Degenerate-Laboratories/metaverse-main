@@ -580,7 +580,10 @@ io.on('connection', function (socket) {
 					victimUser.health -= data.damage;
 
 					//send to the client.js script
-					socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+					//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+
+					//send to all 
+					io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
 				}
 
