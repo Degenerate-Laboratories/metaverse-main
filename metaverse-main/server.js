@@ -47,7 +47,7 @@ function setCustomCacheControl(res, path) {
 		if (isJsFile)
 			res.setHeader('Content-Type', 'application/javascript')
 		else
-		res.setHeader('Content-Type', 'application/wasm')
+			res.setHeader('Content-Type', 'application/wasm')
 	}
 
 
@@ -141,7 +141,8 @@ io.on('connection', function (socket) {
 			socketID: socket.id,//fills out with the id of the socket that was open
 			muteUsers: [],
 			muteAll: false,
-			isMute: true
+			isMute: true,
+			health: 100
 		};//new user  in clients list
 
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
@@ -548,6 +549,53 @@ io.on('connection', function (socket) {
 	});//END_SOCKET_ON
 
 
+	//attack
+	socket.on('ATTACK', function (_data) {
+
+
+		console.log("ATTACK");
+		//if player distance is less than 2 meters
+		var minDistanceToPlayer = 2;
+
+		var data = JSON.parse(_data);
+
+		let attackerUser = clientLookup[data.attackerId];
+		let victimUser = clientLookup[data.victimId];
+
+		if (currentUser) {
+
+			var distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
+
+			if (distance < minDistanceToPlayer) {
+
+				if (victimUser.health <= 0) {
+//reset to 100 health after 2s
+					setTimeout(function () {
+						victimUser.health = 100;
+					}, 2000);
+
+					return;
+				} else {
+					//REDUCE VICTIM HEALTH
+					victimUser.health -= data.damage;
+
+					//send to the client.js script
+					//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+
+					//send to all 
+					io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+
+				}
+
+			}
+
+		}
+
+	});//END_SOCKET_ON
+
+
+
+
 
 
 
@@ -558,7 +606,6 @@ io.on('connection', function (socket) {
 
 
 		if (currentUser) {
-
 
 
 			var newData = data.split(";");
