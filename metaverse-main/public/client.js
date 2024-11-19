@@ -39,11 +39,27 @@ window.addEventListener('load', function() {
 	  
 	   if(window.unityInstance!=null)
 		{
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnJoinGame', currentUserAtr);		
+		 
+		  window.unityInstance.SendMessage ('NetworkManager', 'OnJoinGame', currentUserAtr);
+		
 		}
 	  
 	});//END_SOCKET.ON
 	
+//UPDATE_HEALTH
+socket.on('UPDATE_HEALTH', function(id,health) {
+	
+	var currentUserAtr = id+':'+health;
+	
+	if(window.unityInstance!=null)
+	{
+	 // sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+	  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateHealth', currentUserAtr);
+	
+	}
+	
+});//END_SOCKET.ON
+
 		
 	socket.on('SPAWN_PLAYER', function(id,name,posX,posY,posZ,model) {
 	
@@ -58,21 +74,6 @@ window.addEventListener('load', function() {
 		
 	});//END_SOCKET.ON
 	
-
-//UPDATE_HEALTH
-	socket.on('UPDATE_HEALTH', function(id,health) {
-	
-	    var currentUserAtr = id+':'+health;
-		
-		if(window.unityInstance!=null)
-		{
-	     // sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateHealth', currentUserAtr);
-		
-		}
-		
-	});//END_SOCKET.ON
-
 	socket.on('SPAWN_VEHICLE', function(id,name,model,posX,posY,posZ,currentState,myClientId) {
 	
 	    var current_vehicle = id+':'+name+':'+model+':'+posX+':'+posY+':'+posZ+':'+currentState+':'+myClientId;
