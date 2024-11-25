@@ -231,8 +231,8 @@ socket.on('UPDATE_HEALTH', function(id,health) {
 		
 	});//END_SOCKET.ON
 	
-	  socket.on('UPDATE_MESSAGE', function(id,message) {
-	     var currentUserAtr = id+':'+message;
+	  socket.on('UPDATE_MESSAGE', function(id,message,username) {
+	     var currentUserAtr = id+':'+message+':'+username;
 		 	
 		 if(window.unityInstance!=null)
 		{
