@@ -292,10 +292,30 @@ socket.on('UPDATE_HEALTH', function(id,health) {
 		
 		}
 		 
+
+
+
+
+
 	
 	});//END_SOCKET.ON
 	
+//on disconnection from server
 
+	socket.on('disconnect', function() {
+		
+		console.log('Disconnected from server');
+		if(window.unityInstance!=null)
+		{
+		  
+		 window.unityInstance.SendMessage ('NetworkManager', 'OnDisconnect', '');
+		
+		
+		}
+
+	});//END_SOCKET.ON
+	
+	
 	
 
 });//END_window_addEventListener
