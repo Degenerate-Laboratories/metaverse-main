@@ -30,6 +30,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }))
 
 
+let previousChats = [];
+
 function setCustomCacheControl(res, path) {
 
 	let lastIndex = path.lastIndexOf('.');
@@ -79,10 +81,6 @@ var clients = [];// to storage clients
 var clientLookup = {};// clients search engine
 var sockets = {};//// to storage sockets
 
-var vehicles = [];
-var vehicleLookup = {};
-
-
 
 function getDistance(x1, y1, x2, y2) {
 	let y = x2 - x1;
@@ -121,6 +119,7 @@ io.on('connection', function (socket) {
 	//create a callback fuction to listening EmitJoin() method in NetworkMannager.cs unity script
 	socket.on('JOIN', function (_data) {
 
+		console.log(data);
 		console.log('[INFO] JOIN received !!! ');
 
 		//log
@@ -163,6 +162,10 @@ io.on('connection', function (socket) {
 
 		//send to the client.js script
 		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+		//send previous chats
+		previousChats.forEach(function (i) {
+			socket.emit('UPDATE_MESSAGE', i.id, i.message,i.name);
+		});
 
 		//spawn all connected clients for currentUser client 
 		clients.forEach(function (i) {
@@ -226,163 +229,6 @@ io.on('connection', function (socket) {
 	});//END_SOCKET_ON
 
 
-	socket.on('PICK_VEHICLE', function (_data) {
-
-		var data = JSON.parse(_data);
-
-		//console.log("data id : "+data.id);
-
-		//spawn all connected clients for currentUser client 
-		vehicles.forEach(function (i) {
-			if (i.id == data.id) {
-				i.currentState = "bussy";
-				i.myClientId = currentUser.id;
-				i.charModel = currentUser.model;
-				//send to the client.js script
-				socket.broadcast.emit('UPDATE_VEHICLE_STATE', currentUser.id, i.id, i.currentState);
-
-			}//END_IF
-
-		});//end_forEach
-
-	});
-
-	socket.on('RELEASE_VEHICLE', function (_data) {
-
-		var data = JSON.parse(_data);
-
-		//spawn all connected clients for currentUser client 
-		vehicles.forEach(function (i) {
-			if (i.id == data.vehicleId) {
-				i.currentState = "available";
-				i.myClientId = '';
-				i.isLocalVehicle = false;
-				//send to the client.js script
-				socket.broadcast.emit('UPDATE_VEHICLE_STATE', currentUser.id, i.id, i.currentState);
-
-			}//END_IF
-
-		});//end_forEach
-
-	});
-
-
-
-	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
-	socket.on('UPDATE_VEHICLE_POS_AND_ROT', function (_data) {
-		var data = JSON.parse(_data);
-
-
-
-
-
-		vehicles.forEach(function (i) {
-			if (i.id == data.id) {
-				i.posX = data.posX;
-				i.posY = data.posY;
-				i.posZ = data.posZ;
-				i.rotation = data.rotation;
-				i.spherePosX = data.spherePosX;
-				i.spherePosY = data.spherePosY;
-				i.spherePosZ = data.spherePosZ;
-
-
-
-				//  socket.broadcast.emit('EMIT_VEHICLE_POS_AND_ROT', i.id,i.posX,i.posY,i.posZ,i.rotation);
-
-
-				clients.forEach(function (u) {
-
-					if (u.id != currentUser.id) {
-
-						sockets[u.id].emit('EMIT_VEHICLE_POS_AND_ROT', i.id, i.posX, i.posY, i.posZ, i.rotation, i.spherePosX, i.spherePosY, i.spherePosZ);
-					}
-
-				});
-
-			}//END_IF
-		});//end_forEach
-
-
-
-
-
-	});//END_SOCKET_ON
-
-	socket.on('ACCELERATION', function (_data) {
-
-		var data = JSON.parse(_data);
-
-		//spawn all connected clients for currentUser client 
-		vehicles.forEach(function (i) {
-			if (i.id == data.id) {
-				i.acceleration = data.acceleration;
-
-				//send to the client.js script
-				socket.broadcast.emit('UPDATE_VEHICLE_ACCELERATION', i.id, i.acceleration);
-
-			}//END_IF
-
-		});//end_forEach
-
-	});
-
-	socket.on('OFFSPIN', function (_data) {
-
-		var data = JSON.parse(_data);
-
-		//spawn all connected clients for currentUser client 
-		vehicles.forEach(function (i) {
-			if (i.id == data.id) {
-				i.offSpin = data.offSpin;
-
-				//send to the client.js script
-				socket.broadcast.emit('UPDATE_OFFSPIN', i.id, i.offSpin);
-
-			}//END_IF
-
-		});//end_forEach
-
-	});
-
-	socket.on('FRONT_WHEELS_ROT', function (_data) {
-
-		var data = JSON.parse(_data);
-
-		//spawn all connected clients for currentUser client 
-		vehicles.forEach(function (i) {
-			if (i.id == data.id) {
-				i.wheels_rot = data.wheels_rot;
-
-				//send to the client.js script
-				socket.broadcast.emit('UPDATE_FRONT_WHEELS_ROT', i.id, i.wheels_rot);
-
-			}//END_IF
-
-		});//end_forEach
-
-	});
-
-	socket.on('VEHICLE_INPUTS', function (_data) {
-
-		var data = JSON.parse(_data);
-
-		//spawn all connected clients for currentUser client 
-		vehicles.forEach(function (i) {
-			if (i.id == data.id) {
-
-
-				//send to the client.js script
-				socket.broadcast.emit('UPDATE_VEHICLE_INPUTS', i.id, data.h, data.v);
-
-			}//END_IF
-
-		});//end_forEach
-
-	});
-
-
-
 
 	//create a callback fuction to listening EmitGetBestKillers() method in NetworkMannager.cs unity script
 	socket.on('GET_USERS_LIST', function (pack) {
@@ -418,6 +264,12 @@ io.on('connection', function (socket) {
 			// send current user position and  rotation in broadcast to all clients in game
 			socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
 
+			//push to chat history
+			previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
+			//remove if more than 10
+			if (previousChats.length > 10) {
+				previousChats.shift();
+			}
 
 		}
 	});//END_SOCKET_ON
@@ -569,7 +421,7 @@ io.on('connection', function (socket) {
 			if (distance < minDistanceToPlayer) {
 
 				if (victimUser.health <= 0) {
-//reset to 100 health after 2s
+					//reset to 100 health after 2s
 					setTimeout(function () {
 						victimUser.health = 100;
 					}, 2000);
@@ -764,6 +616,25 @@ function generateRandomPosition(vehicleType) {
 		z: (Math.random() * 100 - 50).toFixed(2) // Random Z position between -50 and 50
 	};
 }
+
+//check for ping from clients every 1s if not disconnect
+
+// setInterval(function () {
+
+// 	clients.forEach(function (u) {
+
+// 		u.timeOut += 1;
+
+// 		if (u.timeOut >= 5) {
+
+// 			console.log("User " + u.name + " has disconnected");
+// 			sockets[u.socketID].disconnect();
+
+// 		}
+
+// 	});
+
+// }, 1000);
 
 /*
 
