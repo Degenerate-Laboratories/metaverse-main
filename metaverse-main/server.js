@@ -16,7 +16,7 @@ const app = express();// create an object of the express module
 const http = require('http').Server(app);// create a http web server using the http library
 const io = require('socket.io')(http);// import socketio communication module
 const path = require('path');
-// const {subscriber, publisher, redis} = require('@pioneer-platform/default-redis')
+const {subscriber, publisher, redis} = require('@pioneer-platform/default-redis')
 const OpenAI = require('openai');
 const openai = new OpenAI({
 	apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
@@ -67,7 +67,7 @@ const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
 
 
-// subscriber.subscribe('clubmoon-publish');
+subscriber.subscribe('clubmoon-publish');
 
 let text_to_voice = async function(text,voice, speed){
 	let tag = TAG + " | text_to_voice | "
@@ -106,20 +106,20 @@ let text_to_voice = async function(text,voice, speed){
 	}
 }
 
-// subscriber.on('message', async function (channel, payloadS) {
-// 	let tag = TAG + ' | publishToGame | ';
-// 	try {
-// 		console.log(tag,"event: ",payloadS)
-// 		if(channel === 'clubmoon-publish'){
-// 			let payload = JSON.parse(payloadS)
-// 			let {text,voice,speed} = payload
-// 			text_to_voice(text,voice,speed)
-// 		}
-// 	} catch (e) {
-// 		console.error()
-// 		//throw e
-// 	}
-// });
+subscriber.on('message', async function (channel, payloadS) {
+	let tag = TAG + ' | publishToGame | ';
+	try {
+		console.log(tag,"event: ",payloadS)
+		if(channel === 'clubmoon-publish'){
+			let payload = JSON.parse(payloadS)
+			let {text,voice,speed} = payload
+			text_to_voice(text,voice,speed)
+		}
+	} catch (e) {
+		console.error()
+		//throw e
+	}
+});
 
 
 //open a connection with the specific client
@@ -159,7 +159,7 @@ io.on('connection', function (socket) {
 			health: 100
 		};//new user  in clients list
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
-		// publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
+		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		text_to_voice(currentUser.name + ' has joined the game','nova',.8);
 		//add currentUser in clients list
 		clients.push(currentUser);
@@ -233,7 +233,7 @@ io.on('connection', function (socket) {
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
-		// publisher.publish('clubmoon-messages', JSON.stringify({channel:'MESSAGE',data}));
+		publisher.publish('clubmoon-messages', JSON.stringify({channel:'MESSAGE',data}));
 		if (currentUser) {
 			// send current user position and  rotation in broadcast to all clients in game
 			socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
@@ -252,7 +252,7 @@ io.on('connection', function (socket) {
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('PRIVATE_MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
-		// publisher.publish('clubmoon-messages', JSON.stringify({channel:'PRIVATE_MESSAGE',data}));
+		publisher.publish('clubmoon-messages', JSON.stringify({channel:'PRIVATE_MESSAGE',data}));
 		if (currentUser) {
 			// send current user position and  rotation in broadcast to all clients in game
 			socket.emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
@@ -332,14 +332,14 @@ io.on('connection', function (socket) {
 
 			if (distance < minDistanceToPlayer) {
 				if (victimUser.health <= 0) {
-					//publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DEAD'}));
+					publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DEAD'}));
 					//reset to 100 health after 2s
 					setTimeout(function () {
 						victimUser.health = 100;
 					}, 2000);
 					return;
 				} else {
-					//publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DAMNAGE'}));
+					publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DAMNAGE'}));
 					//REDUCE VICTIM HEALTH
 					victimUser.health -= data.damage;
 					//send to the client.js script
@@ -386,7 +386,7 @@ io.on('connection', function (socket) {
 	// called when the user disconnect
 	socket.on('disconnect', function () {
 		if (currentUser) {
-			//publisher.publish('clubmoon-events', JSON.stringify({channel:'DISCONNECT',data:currentUser,event:'LEAVE'}));
+			publisher.publish('clubmoon-events', JSON.stringify({channel:'DISCONNECT',data:currentUser,event:'LEAVE'}));
 			currentUser.isDead = true;
 			//send to the client.js script
 			//updates the currentUser disconnection for all players in game
