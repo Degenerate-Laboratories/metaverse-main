@@ -6,13 +6,17 @@
 *   	@version: 0.0.1
 *
 */
-
+require("dotenv").config()
 const express = require('express');//import express NodeJS framework module
 const app = express();// create an object of the express module
 const http = require('http').Server(app);// create a http web server using the http library
 const io = require('socket.io')(http);// import socketio communication module
 const path = require('path');
 const { getDistance } = require('./utils'); // Import setCustomCacheControl from utils.js
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
+if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
 
 const cors = require("cors");
 const corsOptions = {
