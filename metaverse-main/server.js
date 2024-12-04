@@ -7,18 +7,22 @@
 *
 */
 require("dotenv").config()
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
+if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
+
 const express = require('express');//import express NodeJS framework module
 const app = express();// create an object of the express module
 const http = require('http').Server(app);// create a http web server using the http library
 const io = require('socket.io')(http);// import socketio communication module
 const path = require('path');
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
-if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
-console.log('OPENAI_API_KEY FOUND!!!!')
-
+const {subscriber, publisher, redis} = require('@pioneer-platform/default-redis')
+const OpenAI = require('openai');
+const openai = new OpenAI({
+	apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
+});
 const cors = require("cors");
+const TAG = " | CLUBMOON | "
 const corsOptions = {
 	origin: '*',
 	credentials: true,            //access-control-allow-credentials:true
@@ -63,6 +67,61 @@ const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
 
 
+subscriber.subscribe('clubmoon-publish');
+
+let text_to_voice = async function(text,voice, speed){
+	let tag = TAG + " | text_to_voice | "
+	try{
+		if(!voice) voice = 'echo'
+		if(!speed) speed  = 1.0
+		// Call OpenAI API to generate audio
+		const response = await openai.audio.speech.create({
+			input: text,
+			//'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+			voice, // Replace with desired voice type
+			speed,
+			model: 'tts-1', // Replace with your selected TTS model
+		});
+
+		// Validate that the response body is a readable stream
+		if (!response.body || typeof response.body.pipe !== 'function') {
+			throw new Error('Response body is missing or not a stream.');
+		}
+
+		// Read the stream into a buffer
+		const chunks = [];
+		for await (const chunk of response.body) {
+			chunks.push(chunk);
+		}
+		const audioBuffer = Buffer.concat(chunks);
+
+		// Encode audio to base64
+		const base64Audio = audioBuffer.toString('base64');
+		const audioDataURI = `data:audio/mp3;base64,${base64Audio}`;
+
+		// Emit the audio data to all connected clients
+		io.emit('UPDATE_VOICE', audioDataURI);
+	}catch(e){
+		console.error(e)
+	}
+}
+
+subscriber.on('message', async function (channel, payloadS) {
+	let tag = TAG + ' | publishToGame | ';
+	try {
+		console.log(tag,"event: ",payloadS)
+		if(channel === 'clubmoon-publish'){
+			let payload = JSON.parse(payloadS)
+			let {text,voice,speed} = payload
+			text_to_voice(text,voice,speed)
+		}
+	} catch (e) {
+		console.error()
+		//throw e
+	}
+});
+
+
 //open a connection with the specific client
 io.on('connection', function (socket) {
 	console.log('A user ready for connection!');
@@ -100,6 +159,8 @@ io.on('connection', function (socket) {
 			health: 100
 		};//new user  in clients list
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
+		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
+		text_to_voice(currentUser.name + ' has joined the game','nova',.8);
 		//add currentUser in clients list
 		clients.push(currentUser);
 
@@ -172,6 +233,7 @@ io.on('connection', function (socket) {
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
+		publisher.publish('clubmoon-messages', JSON.stringify({channel:'MESSAGE',data}));
 		if (currentUser) {
 			// send current user position and  rotation in broadcast to all clients in game
 			socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
@@ -190,6 +252,7 @@ io.on('connection', function (socket) {
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('PRIVATE_MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
+		publisher.publish('clubmoon-messages', JSON.stringify({channel:'PRIVATE_MESSAGE',data}));
 		if (currentUser) {
 			// send current user position and  rotation in broadcast to all clients in game
 			socket.emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
@@ -263,17 +326,20 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
+
 		if (currentUser) {
 			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
 
 			if (distance < minDistanceToPlayer) {
 				if (victimUser.health <= 0) {
+					publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DEAD'}));
 					//reset to 100 health after 2s
 					setTimeout(function () {
 						victimUser.health = 100;
 					}, 2000);
 					return;
 				} else {
+					publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DAMNAGE'}));
 					//REDUCE VICTIM HEALTH
 					victimUser.health -= data.damage;
 					//send to the client.js script
@@ -317,21 +383,19 @@ io.on('connection', function (socket) {
 	});
 
 
-	// called when the user desconnect
+	// called when the user disconnect
 	socket.on('disconnect', function () {
-
 		if (currentUser) {
+			publisher.publish('clubmoon-events', JSON.stringify({channel:'DISCONNECT',data:currentUser,event:'LEAVE'}));
 			currentUser.isDead = true;
 			//send to the client.js script
 			//updates the currentUser disconnection for all players in game
 			socket.broadcast.emit('USER_DISCONNECTED', currentUser.id);
 
-			for (const i = 0; i < clients.length; i++) {
+			for (let i = 0; i < clients.length; i++) {
 				if (clients[i].name == currentUser.name && clients[i].id == currentUser.id) {
-
 					console.log("User " + clients[i].name + " has disconnected");
 					clients.splice(i, 1);
-
 				};
 			};
 		}
