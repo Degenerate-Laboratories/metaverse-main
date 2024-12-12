@@ -59,6 +59,31 @@ socket.on('UPDATE_HEALTH', function(id,health) {
 	}
 	
 });//END_SOCKET.ON
+socket.on('FIGHT_STARTED', function (hasStarted) {
+
+	if (window.unityInstance != null) {
+		// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+		window.unityInstance.SendMessage('NetworkManager', 'OnFightStarted', hasStarted);
+
+	}
+
+});//END_SOCKET.ON
+
+//spawnProjectile
+socket.on('SPAWN_PROJECTILE', function (_data) {
+
+	//var currentUserAtr = posX + ':' + posY + ':' + posZ + ':' + dirX + ':' + dirY + ':' + dirZ + ':' + attackerId;
+	console.log(_data);
+	let ar = [_data]
+	if (window.unityInstance != null) {
+		// sends the package currentUserAtr to the met
+		window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile',JSON.stringify(ar));
+
+	}
+
+});//END_SOCKET.ON
+
+
 
 		
 	socket.on('SPAWN_PLAYER', function(id,name,posX,posY,posZ,model) {
