@@ -257,7 +257,7 @@ io.on('connection', function (socket) {
 
 	socket.on('WALLETMESSAGE', function (_data) {
 		const data = JSON.parse(_data);
-		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
+		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message)
 	});//END_SOCKET_ON
 
