@@ -255,6 +255,11 @@ io.on('connection', function (socket) {
 		}
 	});//END_SOCKET_ON
 
+	socket.on('WALLETMESSAGE', function (_data) {
+		const data = JSON.parse(_data);
+
+		console.log("User Address: " + data.message)
+	});//END_SOCKET_ON
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('PRIVATE_MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
