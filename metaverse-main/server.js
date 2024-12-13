@@ -166,6 +166,9 @@ io.on('connection', function (socket) {
 
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
+		publisher.publish('clubmoon-join', JSON.stringify(currentUser));
+
+		
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
 		clients.push(currentUser);
@@ -257,8 +260,9 @@ io.on('connection', function (socket) {
 
 	socket.on('WALLETMESSAGE', function (_data) {
 		const data = JSON.parse(_data);
+		console.log(data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
-		console.log("User Address: " + data.message)
+		console.log("User Address: " + data.message);
 	});//END_SOCKET_ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
