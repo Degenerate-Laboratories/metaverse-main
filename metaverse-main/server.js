@@ -162,6 +162,7 @@ io.on('connection', function (socket) {
 		//this is npc health
 		if (data.model == -1) {
 			currentUser.health = 1000
+			garyNPCClientId = currentUser.id;
 		}
 
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
@@ -340,9 +341,15 @@ io.on('connection', function (socket) {
 	//fight started
 	socket.on('FIGHT_STARTED', function (_data) {
 
-		console.log("FIGHT_STARTED");
 		if (currentUser) {
 
+
+			if(_data == "False"){
+
+				//reset npc health to 1000
+				clientLookup[garyNPCClientId].health = 1000;
+
+			}
 			//send to the client.js script
 			//updates the animation of the player for the other game clients
 			socket.broadcast.emit('FIGHT_STARTED', _data);
@@ -351,10 +358,24 @@ io.on('connection', function (socket) {
 
 	});//END_SOCKET_ON
 
+	socket.on('SPAWN_PROJECTILE', function (_data) {
+
+		const data = JSON.parse(_data);
+		io.emit('SPAWN_PROJECTILE', _data);
+
+		// if (window.unityInstance != null) {
+		// 	// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+		// 	window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile', currentUserAtr);
+	
+		// }
+	
+	});//END_SOCKET.ON
+	
+
 	//attack
 	socket.on('ATTACK', function (_data) {
 		//if player distance is less than 2 meters
-		const minDistanceToPlayer = 2;
+		//const minDistanceToPlayer = 2;
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
@@ -362,10 +383,10 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
 
-			if (distance > minDistanceToPlayer) {
+			//if (distance > minDistanceToPlayer) {
 
-				return;
-			} else {
+			//	return;
+		//	} else {
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
 				//REDUCE VICTIM HEALTH
@@ -381,7 +402,7 @@ io.on('connection', function (socket) {
 				//send to all 
 				io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-			}
+		//	}
 
 		}
 	});//END_SOCKET_ON
@@ -445,7 +466,7 @@ function gameloop() {
 		//check if not model
 		if (u.model != -1) {
 			// if not attacked since 5s retunr to 100 health
-			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 5000) {
+			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 6000) {
 				u.health = 100;
 
 				//send to the client.js script
