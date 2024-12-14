@@ -29,6 +29,7 @@ const corsOptions = {
 	optionSuccessStatus: 200
 }
 
+let garyNPCClientId = null;
 app.use(cors(corsOptions)) // Use this after the variable declaration
 
 function getDistance(x1, y1, x2, y2) {
