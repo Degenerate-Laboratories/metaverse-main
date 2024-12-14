@@ -10,6 +10,10 @@ require("dotenv").config()
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
 if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
+const SolanaLib = require('solana-wallet-1').default
+
+let seed = process.env['WALLET_SEED']
+//if(!seed) throw Error('Missing WALLET_SEED in .env file')
 
 const express = require('express');//import express NodeJS framework module
 const app = express();// create an object of the express module
@@ -23,6 +27,57 @@ const openai = new OpenAI({
 });
 const cors = require("cors");
 const TAG = " | CLUBMOON | "
+
+let wallet = SolanaLib.init({ mnemonic: seed })
+
+/*
+
+        // get address
+        let address = await wallet.getAddress()
+        console.log("Address:", address)
+
+
+        // get balance
+        let balance = await wallet.getBalance("solana:mainnet")
+        console.log("SOL Balance:", balance, "SOL")
+
+        let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
+        console.log("CLUBMOON Token Balance:", tokenBalance)
+
+        // get NFTs
+        let nfts = await wallet.getNfts("solana:mainnet")
+        console.log("NFT Count:", nfts.length)
+
+        // If you have NFTs, you can see them:
+        nfts.forEach((nft, i) => {
+            console.log(`NFT #${i+1}: ${nft.name} (${nft.address.toBase58()})`)
+        })
+
+        // send Solana (uncomment if you want to actually send; be sure you have enough SOL!)
+        // let sendSolTx = await wallet.sendSol("5RU2erdSLHU8oVEFVK82KCoTSpZt7a6J6gyXcfRVUj5v", 0.0001)
+        // console.log("Sent SOL Tx:", sendSolTx)
+
+        // send Token (again, be cautious and ensure you have these tokens)
+        // let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "5RU2erdSLHU8oVEFVK82KCoTSpZt7a6J6gyXcfRVUj5v", 1, "solana:mainnet", true)
+        // console.log("Sent Token Tx:", sendTokenTx)
+
+        // send NFT (be very careful, ensure you have the NFT in your wallet)
+        // let sendNftTx = await wallet.sendNft("NftMintAddressHere", "RecipientPublicKeyHere")
+        // console.log("Sent NFT Tx:", sendNftTx)
+
+ */
+
+let test_onStart = async function(){
+	try{
+		let address = await wallet.getAddress()
+		console.log("Address:", address)
+
+	}catch(e){
+		console.error(e)
+	}
+}
+test_onStart()
+
 const corsOptions = {
 	origin: '*',
 	credentials: true,            //access-control-allow-credentials:true
@@ -34,7 +89,6 @@ app.use(cors(corsOptions)) // Use this after the variable declaration
 function getDistance(x1, y1, x2, y2) {
 	let y = x2 - x1;
 	let x = y2 - y1;
-
 	return Math.sqrt(x * x + y * y);
 }
 
@@ -65,8 +119,6 @@ let previousChats = [];
 const clients = [];// to storage clients
 const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
-
-
 subscriber.subscribe('clubmoon-publish');
 
 let text_to_voice = async function(text,voice, speed){
@@ -340,8 +392,27 @@ io.on('connection', function (socket) {
 					return;
 				} else {
 					publisher.publish('clubmoon-events', JSON.stringify({channel:'HEALTH',data,attackerUser,victimUser,event:'DAMNAGE'}));
+					//
+
+					//TODO if gary,
 					//REDUCE VICTIM HEALTH
 					victimUser.health -= data.damage;
+
+					// if(victimUser.health < 80){
+					// 	//victimUser.health
+					// 	text_to_voice(victimUser.name+ ' health: ' + victimUser.health,'nova',.8);
+					// }
+					//
+					// if(victimUser.health < 50){
+					// 	//
+					// 	text_to_voice(victimUser.name+ ' health: ' + victimUser.health,'nova',.8);
+					// }
+					//
+					// if(victimUser.health < 20){
+					// 	//
+					// 	text_to_voice(victimUser.name+ ' health: ' + victimUser.health,'nova',.8);
+					// }
+
 					//send to the client.js script
 					//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 					//send to all
@@ -399,9 +470,8 @@ io.on('connection', function (socket) {
 				};
 			};
 		}
-	});//END_SOCKET_ON
-});//END_IO.ON
-
+	});
+});
 
 http.listen(process.env.PORT || 3000, function () {
 	console.log('listening on *:3000');
