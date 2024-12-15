@@ -62,8 +62,9 @@ socket.on('UPDATE_HEALTH', function(id,health) {
 socket.on('FIGHT_STARTED', function (hasStarted) {
 
 	if (window.unityInstance != null) {
+		console.log(hasStarted);
 		// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
-		window.unityInstance.SendMessage('NetworkManager', 'OnFightStarted', hasStarted);
+		window.unityInstance.SendMessage('NetworkManager', 'MakeFightAreaLocked', hasStarted);
 
 	}
 

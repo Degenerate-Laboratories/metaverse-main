@@ -21,6 +21,7 @@ const OpenAI = require('openai');
 const openai = new OpenAI({
 	apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
 });
+
 const cors = require("cors");
 const TAG = " | CLUBMOON | "
 const corsOptions = {
@@ -66,7 +67,6 @@ let previousChats = [];
 const clients = [];// to storage clients
 const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
-
 
 subscriber.subscribe('clubmoon-publish');
 
