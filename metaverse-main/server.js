@@ -162,7 +162,7 @@ io.on('connection', function (socket) {
 
 		//this is npc health
 		if (data.model == -1) {
-			currentUser.health = 1000
+			currentUser.health = 500
 			garyNPCClientId = currentUser.id;
 		}
 
@@ -347,8 +347,8 @@ io.on('connection', function (socket) {
 
 			if(_data == "False"){
 
-				//reset npc health to 1000
-				clientLookup[garyNPCClientId].health = 1000;
+				//reset npc health to 500
+				clientLookup[garyNPCClientId].health = 500;
 
 			}
 			//send to the client.js script
@@ -482,7 +482,7 @@ function gameloop() {
 				//send to the client.js script
 				//reset npc health after 10s
 				setTimeout(function () {
-					u.health = 1000;
+					u.health = 500;
 					sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 				}, 10000);
 
