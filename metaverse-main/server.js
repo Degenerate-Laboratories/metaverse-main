@@ -21,6 +21,7 @@ const OpenAI = require('openai');
 const openai = new OpenAI({
 	apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
 });
+
 const cors = require("cors");
 const TAG = " | CLUBMOON | "
 const corsOptions = {
@@ -29,6 +30,7 @@ const corsOptions = {
 	optionSuccessStatus: 200
 }
 
+let garyNPCClientId = null;
 app.use(cors(corsOptions)) // Use this after the variable declaration
 
 function getDistance(x1, y1, x2, y2) {
@@ -65,7 +67,6 @@ let previousChats = [];
 const clients = [];// to storage clients
 const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
-
 
 subscriber.subscribe('clubmoon-publish');
 
@@ -161,7 +162,8 @@ io.on('connection', function (socket) {
 
 		//this is npc health
 		if (data.model == -1) {
-			currentUser.health = 1000
+			currentUser.health = 500
+			garyNPCClientId = currentUser.id;
 		}
 
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
@@ -340,9 +342,15 @@ io.on('connection', function (socket) {
 	//fight started
 	socket.on('FIGHT_STARTED', function (_data) {
 
-		console.log("FIGHT_STARTED");
 		if (currentUser) {
 
+
+			if(_data == "False"){
+
+				//reset npc health to 500
+				clientLookup[garyNPCClientId].health = 500;
+
+			}
 			//send to the client.js script
 			//updates the animation of the player for the other game clients
 			socket.broadcast.emit('FIGHT_STARTED', _data);
@@ -351,10 +359,24 @@ io.on('connection', function (socket) {
 
 	});//END_SOCKET_ON
 
+	socket.on('SPAWN_PROJECTILE', function (_data) {
+
+		const data = JSON.parse(_data);
+		io.emit('SPAWN_PROJECTILE', _data);
+
+		// if (window.unityInstance != null) {
+		// 	// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+		// 	window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile', currentUserAtr);
+	
+		// }
+	
+	});//END_SOCKET.ON
+	
+
 	//attack
 	socket.on('ATTACK', function (_data) {
 		//if player distance is less than 2 meters
-		const minDistanceToPlayer = 2;
+		//const minDistanceToPlayer = 2;
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
@@ -362,10 +384,10 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
 
-			if (distance > minDistanceToPlayer) {
+			//if (distance > minDistanceToPlayer) {
 
-				return;
-			} else {
+			//	return;
+		//	} else {
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
 				//REDUCE VICTIM HEALTH
@@ -381,7 +403,7 @@ io.on('connection', function (socket) {
 				//send to all 
 				io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-			}
+		//	}
 
 		}
 	});//END_SOCKET_ON
@@ -445,7 +467,7 @@ function gameloop() {
 		//check if not model
 		if (u.model != -1) {
 			// if not attacked since 5s retunr to 100 health
-			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 5000) {
+			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 6000) {
 				u.health = 100;
 
 				//send to the client.js script
@@ -460,7 +482,7 @@ function gameloop() {
 				//send to the client.js script
 				//reset npc health after 10s
 				setTimeout(function () {
-					u.health = 1000;
+					u.health = 500;
 					sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 				}, 10000);
 

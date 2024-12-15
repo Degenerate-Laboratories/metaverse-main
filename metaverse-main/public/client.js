@@ -59,6 +59,16 @@ socket.on('UPDATE_HEALTH', function(id,health) {
 	}
 	
 });//END_SOCKET.ON
+socket.on('FIGHT_STARTED', function (hasStarted) {
+
+	if (window.unityInstance != null) {
+		console.log(hasStarted);
+		// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+		window.unityInstance.SendMessage('NetworkManager', 'MakeFightAreaLocked', hasStarted);
+
+	}
+
+});//END_SOCKET.ON
 
 		
 	socket.on('SPAWN_PLAYER', function(id,name,posX,posY,posZ,model) {
