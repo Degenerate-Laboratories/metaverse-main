@@ -121,9 +121,20 @@ const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
 subscriber.subscribe('clubmoon-publish');
 
+let ROLL = {
+	partyA: null,
+	partyB: null,
+	amount: 0,
+	fundingPartA: null,
+	fundingPartB: null,
+}
+
+let ALL_USERS = []
+
 let text_to_voice = async function (text, voice, speed) {
 	let tag = TAG + " | text_to_voice | "
 	try {
+		console.log(tag,'text: ',text)
 		if (!voice) voice = 'echo'
 		if (!speed) speed = 1.0
 		// Call OpenAI API to generate audio
@@ -292,20 +303,135 @@ io.on('connection', function (socket) {
 	});//END_SOCKET.ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
-	socket.on('MESSAGE', function (_data) {
+	socket.on('MESSAGE', async function (_data) {
 		const data = JSON.parse(_data);
+		console.log("data: ", data)
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'MESSAGE', data }));
 		if (currentUser) {
-			// send current user position and  rotation in broadcast to all clients in game
-			socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
-			// send current user position and  rotation in broadcast to all clients in game
-			socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
+			if(data.message.indexOf('/roll') > -1){
+				//We need to find their paired wallet
+				const foundUser = ALL_USERS.find(user => user.id === data.id);
+				if(foundUser){
+					console.log("ROLLING")
+					//
+					if(ROLL.partyA == null){
+						//
+						ROLL.partyA = currentUser.id;
+						let amount = data.message.split(' ')[1];
+						if(!amount || isNaN(amount) || parseFloat(amount <= 0)){
+							console.error('Unable to create roll, invalid amount')
+							sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, invalid amount');
 
-			//push to chat history
-			previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
-			//remove if more than 10
-			if (previousChats.length > 10) {
-				previousChats.shift();
+							ROLL = {
+								partyA: null,
+								partyB: null,
+								amount: 0,
+							}
+						}
+						ROLL.amount = parseFloat(amount);
+						let address = await wallet.getAddress()
+						console.log("Address:", address)
+
+						console.log('data: ',data)
+						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+amount+" to this address to join the roll");
+						//
+					} else {
+						console.error('ROLL ALREADY START CAN NOT CLAIM!')
+					}
+				} else {
+					console.error('USER HAS NO WALLET PAIRED!')
+					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, You must first pair wallet!!');
+				}
+
+
+			} else if(data.message.indexOf('/checkTx') > -1) {
+				//lookup TX's for deposit
+				let incomingTransfers = await wallet.getIncomingTransfers("solana:mainnet", 10)
+				incomingTransfers.forEach(t => {
+					// Check if `t.from` matches any user in ALL_USERS
+					const matchedUser = ALL_USERS.find(user => user.id === t.from);
+
+					if (matchedUser) {
+						console.log("Found a matching user for t.from:", matchedUser);
+					}
+					if(ROLL.partyA == matchedUser.id){
+						console.log("FUNDED PARTY A")
+						ROLL.partyAFunded = true;
+					}
+					if(ROLL.partyB == matchedUser.id){
+						console.log("FUNDED PARTY B")
+						ROLL.partyBFunded = true;
+					}
+				});
+			} else if(data.message.indexOf('/accept') > -1){
+				console.log("ACCEPTING ROLL")
+				const foundUser = ALL_USERS.find(user => user.id === data.id);
+				if(foundUser){
+					if(ROLL.partyB == null){
+						console.log("ACCEPTING ROLL 2")
+						//
+						ROLL.partyB = currentUser.id;
+						let address = await wallet.getAddress()
+						console.log("Address:", address)
+
+						console.log('data: ',data)
+						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+ROLL.amount+" to this address to join the roll");
+
+						// Pick a random number between 1 and 100
+						const randomNumber = Math.floor(Math.random() * 100) + 1;
+						await text_to_voice('Roll has begun! The winner will be determined by a random number between 1 and 100. Good luck! .... '+randomNumber, 'nova',0.8)
+						console.log('randomNumber: ',randomNumber)
+						// Determine the winner
+						let winner;
+						if (randomNumber <= 50) {
+							winner = ROLL.partyA; // Party A wins if number ≤ 50
+							await text_to_voice('Winner! ' + ROLL.partyA + 'has won! ', 'nova',0.8)
+
+						} else {
+							winner = ROLL.partyB; // Party B wins otherwise
+							await text_to_voice('Winner! ' + ROLL.partyB + 'has won! ', 'nova',0.8)
+						}
+
+						// Calculate payout (amount * 1.8)
+						const payout = ROLL.amount * 1.8;
+						console.log('payout: ',payout)
+						// Send the payout to the winner
+						try {
+							//TODO pay the peeps
+							// const tx = await wallet.sendTransaction({
+							// 	to: winner,
+							// 	value: payout
+							// });
+							//
+							console.log("Payout transaction hash:", 'fakeTXIDBRO');
+							sockets[data.id].emit('UPDATE_MESSAGE', `The winner is ${winner}! ${payout} has been sent to the winner's address.`);
+						} catch (error) {
+							console.error("Error sending payout:", error);
+							sockets[data.id].emit('UPDATE_MESSAGE', `Failed to send payout to ${winner}. Please try again.`);
+						}
+						//send amount * 1.8 to winner
+					} else {
+						console.error("ROLL ALREADY COMPLETE! CAN NOT ACCEPT")
+					}
+				} else {
+					console.error('USER HAS NO WALLET PAIRED!')
+					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to accept roll, You must first pair wallet!!');
+				}
+
+				
+			} else {
+				console.log("NOT ROLLING")
+				// send current user position and  rotation in broadcast to all clients in game
+				socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
+				// send current user position and  rotation in broadcast to all clients in game
+				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
+
+				//push to chat history
+				previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
+				//remove if more than 10
+				if (previousChats.length > 10) {
+					previousChats.shift();
+				}
 			}
 		}
 	});//END_SOCKET_ON
@@ -315,6 +441,12 @@ io.on('connection', function (socket) {
 		console.log(data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
+		ALL_USERS.push(
+			{
+				id: data.id,
+				address: data.message
+			}
+		)
 	});//END_SOCKET_ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
