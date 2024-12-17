@@ -184,7 +184,7 @@ io.on('connection', function (socket) {
 		/*********************************************************************************************/
 
 		//send to the client.js script
-		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
 		//send previous chats
 		previousChats.forEach(function (i) {
 			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
@@ -199,7 +199,7 @@ io.on('connection', function (socket) {
 		});//end_forEach
 
 		// spawn currentUser client on clients in broadcast
-		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
+		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
 	});//END_SOCKET_ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
@@ -442,22 +442,26 @@ io.on('connection', function (socket) {
 	});
 
 
+
+
 	// called when the user disconnect
 	socket.on('disconnect', function () {
-		if (currentUser) {
-			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
-			currentUser.isDead = true;
-			//send to the client.js script
-			//updates the currentUser disconnection for all players in game
-			socket.broadcast.emit('USER_DISCONNECTED', currentUser.id);
+		//	if (currentUser) {
+		publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
+		//send to the client.js script
+		//updates the currentUser disconnection for all players in game
+		console.log(socket.id)
+		for (let i = 0; i < clients.length; i++) {
+			if (clients[i].id == socket.id) {
+				console.log(clients[i])
 
-			for (let i = 0; i < clients.length; i++) {
-				if (clients[i].name == currentUser.name && clients[i].id == currentUser.id) {
-					console.log("User " + clients[i].name + " has disconnected");
-					clients.splice(i, 1);
-				};
+				console.log("User " + clients[i].name + " has disconnected");
+				clients[i].isDead = true;
+				socket.broadcast.emit('USER_DISCONNECTED', socket.id);
+				clients.splice(i, 1);
 			};
-		}
+		};
+		//	}
 	});//END_SOCKET_ON
 });//END_IO.ON
 
