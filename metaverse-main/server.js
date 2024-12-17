@@ -31,6 +31,8 @@ const corsOptions = {
 }
 
 let garyNPCClientId = null;
+let gameData = {}
+
 app.use(cors(corsOptions)) // Use this after the variable declaration
 
 function getDistance(x1, y1, x2, y2) {
@@ -170,7 +172,7 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-join', JSON.stringify(currentUser));
 
-		
+
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
 		clients.push(currentUser);
@@ -197,7 +199,7 @@ io.on('connection', function (socket) {
 		});//end_forEach
 
 		// spawn currentUser client on clients in broadcast
-		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
 	});//END_SOCKET_ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
@@ -344,8 +346,8 @@ io.on('connection', function (socket) {
 
 		if (currentUser) {
 
-
-			if(_data == "False"){
+			gameData.fightStarted = _data
+			if (_data == "False") {
 
 				//reset npc health to 500
 				clientLookup[garyNPCClientId].health = 500;
@@ -367,11 +369,11 @@ io.on('connection', function (socket) {
 		// if (window.unityInstance != null) {
 		// 	// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
 		// 	window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile', currentUserAtr);
-	
+
 		// }
-	
+
 	});//END_SOCKET.ON
-	
+
 
 	//attack
 	socket.on('ATTACK', function (_data) {
@@ -387,23 +389,23 @@ io.on('connection', function (socket) {
 			//if (distance > minDistanceToPlayer) {
 
 			//	return;
-		//	} else {
-				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
+			//	} else {
+			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
-				//REDUCE VICTIM HEALTH
-				victimUser.health -= data.damage;
-				if (victimUser.health < 0) {
-					publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
+			//REDUCE VICTIM HEALTH
+			victimUser.health -= data.damage;
+			if (victimUser.health < 0) {
+				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
-				}
-				clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
-				//send to the client.js script
-				//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+			}
+			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
+			//send to the client.js script
+			//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-				//send to all 
-				io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+			//send to all 
+			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-		//	}
+			//	}
 
 		}
 	});//END_SOCKET_ON
