@@ -33,9 +33,9 @@ window.addEventListener('load', function() {
 	});//END_SOCKET.ON
 
 					      
-	socket.on('JOIN_SUCCESS', function(id,name,posX,posY,posZ,model) {
+	socket.on('JOIN_SUCCESS', function(id,name,posX,posY,posZ,model,fightStarted) {
 				      		
-	  var currentUserAtr = id+':'+name+':'+posX+':'+posY+':'+posZ+':'+model;
+	  var currentUserAtr = id+':'+name+':'+posX+':'+posY+':'+posZ+':'+model+':'+fightStarted;
 	  
 	   if(window.unityInstance!=null)
 		{
@@ -58,6 +58,16 @@ socket.on('UPDATE_HEALTH', function(id,health) {
 	
 	}
 	
+});//END_SOCKET.ON
+socket.on('FIGHT_STARTED', function (hasStarted) {
+
+	if (window.unityInstance != null) {
+		console.log(hasStarted);
+		// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+		window.unityInstance.SendMessage('NetworkManager', 'MakeFightAreaLocked', hasStarted);
+
+	}
+
 });//END_SOCKET.ON
 
 		

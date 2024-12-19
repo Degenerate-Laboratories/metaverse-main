@@ -91,6 +91,9 @@ const corsOptions = {
 	optionSuccessStatus: 200
 }
 
+let garyNPCClientId = null;
+let gameData = {}
+
 app.use(cors(corsOptions)) // Use this after the variable declaration
 
 function getDistance(x1, y1, x2, y2) {
@@ -126,6 +129,8 @@ let previousChats = [];
 const clients = [];// to storage clients
 const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
+
+
 subscriber.subscribe('clubmoon-publish');
 
 let ROLL = {
@@ -231,7 +236,8 @@ io.on('connection', function (socket) {
 
 		//this is npc health
 		if (data.model == -1) {
-			currentUser.health = 1000
+			currentUser.health = 500
+			garyNPCClientId = currentUser.id;
 		}
 
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
@@ -250,7 +256,7 @@ io.on('connection', function (socket) {
 		/*********************************************************************************************/
 
 		//send to the client.js script
-		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
 		//send previous chats
 		previousChats.forEach(function (i) {
 			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
@@ -268,6 +274,64 @@ io.on('connection', function (socket) {
 		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
 	});//END_SOCKET_ON
 
+	socket.on('JOIN_NPC', function (_data) {
+		const data = JSON.parse(_data);
+		// fills out with the information emitted by the player in the unity
+		currentUser = {
+			name: data.name,
+			publicAddress: data.publicAddress,
+			model: data.model,
+			posX: data.posX,
+			posY: data.posY,
+			posZ: data.posZ,
+			rotation: '0',
+			id: socket.id,//alternatively we could use socket.id
+			socketID: socket.id,//fills out with the id of the socket that was open
+			muteUsers: [],
+			muteAll: false,
+			isMute: true,
+			health: 100
+		};//new user  in clients list
+
+		//this is npc health
+		if (data.model == -1) {
+			currentUser.health = 500
+			garyNPCClientId = currentUser.id;
+		}
+
+		console.log('[INFO] player ' + currentUser.name + ': logged!');
+		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
+		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
+
+
+		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
+		//add currentUser in clients list
+		clients.push(currentUser);
+
+		//add client in search engine
+		clientLookup[currentUser.id] = currentUser;
+		sockets[currentUser.id] = socket;//add curent user socket
+		console.log('[INFO] Total players: ' + clients.length);
+		/*********************************************************************************************/
+
+		//send to the client.js script
+		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
+		//send previous chats
+		previousChats.forEach(function (i) {
+			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
+		});
+
+		//spawn all connected clients for currentUser client
+		clients.forEach(function (i) {
+			if (i.id != currentUser.id) {
+				//send to the client.js script
+				socket.emit('SPAWN_PLAYER', i.id, i.name, i.posX, i.posY, i.posZ, i.model);
+			}//END_IF
+		});//end_forEach
+
+		// spawn currentUser client on clients in broadcast
+		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+	});//END_SOCKET_ON
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('MOVE_AND_ROTATE', function (_data) {
 		const data = JSON.parse(_data);
@@ -532,6 +596,13 @@ io.on('connection', function (socket) {
 		console.log("FIGHT_STARTED");
 		if (currentUser) {
 
+			gameData.fightStarted = _data
+			if (_data == "False") {
+
+				//reset npc health to 500
+				clientLookup[garyNPCClientId].health = 500;
+
+			}
 			//send to the client.js script
 			//updates the animation of the player for the other game clients
 			socket.broadcast.emit('FIGHT_STARTED', _data);
@@ -540,10 +611,24 @@ io.on('connection', function (socket) {
 
 	});//END_SOCKET_ON
 
+	socket.on('SPAWN_PROJECTILE', function (_data) {
+
+		const data = JSON.parse(_data);
+		io.emit('SPAWN_PROJECTILE', _data);
+
+		// if (window.unityInstance != null) {
+		// 	// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
+		// 	window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile', currentUserAtr);
+
+		// }
+
+	});//END_SOCKET.ON
+
+
 	//attack
 	socket.on('ATTACK', function (_data) {
 		//if player distance is less than 2 meters
-		const minDistanceToPlayer = 2;
+		//const minDistanceToPlayer = 2;
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
@@ -553,26 +638,26 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
 
-			if (distance > minDistanceToPlayer) {
+			//if (distance > minDistanceToPlayer) {
 
-				return;
-			} else {
-				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
+			//	return;
+			//	} else {
+			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
-				//REDUCE VICTIM HEALTH
-				victimUser.health -= data.damage;
-				if (victimUser.health < 0) {
-					publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
-
-				}
-				clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
-				//send to the client.js script
-				//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
-
-				//send to all
-				io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+			//REDUCE VICTIM HEALTH
+			victimUser.health -= data.damage;
+			if (victimUser.health < 0) {
+				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
 			}
+			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
+			//send to the client.js script
+			//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+
+			//send to all
+			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+
+			//	}
 
 		}
 	});//END_SOCKET_ON
@@ -609,24 +694,29 @@ io.on('connection', function (socket) {
 	});
 
 
+
+
 	// called when the user disconnect
 	socket.on('disconnect', function () {
-		if (currentUser) {
-			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
-			currentUser.isDead = true;
-			//send to the client.js script
-			//updates the currentUser disconnection for all players in game
-			socket.broadcast.emit('USER_DISCONNECTED', currentUser.id);
+		//	if (currentUser) {
+		publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
+		//send to the client.js script
+		//updates the currentUser disconnection for all players in game
+		console.log(socket.id)
+		for (let i = 0; i < clients.length; i++) {
+			if (clients[i].id == socket.id) {
+				console.log(clients[i])
 
-			for (let i = 0; i < clients.length; i++) {
-				if (clients[i].name == currentUser.name && clients[i].id == currentUser.id) {
-					console.log("User " + clients[i].name + " has disconnected");
-					clients.splice(i, 1);
-				};
+				console.log("User " + clients[i].name + " has disconnected");
+				clients[i].isDead = true;
+				socket.broadcast.emit('USER_DISCONNECTED', socket.id);
+				clients.splice(i, 1);
 			};
-		}
-	});
-});
+		};
+		//	}
+	});//END_SOCKET_ON
+});//END_IO.ON
+
 
 function gameloop() {
 	//spawn all connected clients for currentUser client
@@ -635,7 +725,7 @@ function gameloop() {
 		//check if not model
 		if (u.model != -1) {
 			// if not attacked since 5s retunr to 100 health
-			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 5000) {
+			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 6000) {
 				u.health = 100;
 
 				//send to the client.js script
@@ -650,7 +740,7 @@ function gameloop() {
 				//send to the client.js script
 				//reset npc health after 10s
 				setTimeout(function () {
-					u.health = 1000;
+					u.health = 500;
 					sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 				}, 10000);
 
