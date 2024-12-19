@@ -494,6 +494,15 @@ io.on('connection', function (socket) {
 					console.error('USER HAS NO WALLET PAIRED!')
 					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to accept roll, You must first pair wallet!!');
 				}
+			} else if(data.message.indexOf('/address') > -1){
+				let address = await wallet.getAddress()
+				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, address);
+			} else if(data.message.indexOf('/balance') > -1){
+				let balance = await wallet.getBalance("solana:mainnet")
+				let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
+				console.log("CLUBMOON Token Balance:", tokenBalance)
+				console.log("CLUBMOON Balance:", balance)
+				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, "SOL Balance: "+balance+" CLUBMOON Token Balance: "+tokenBalance);
 			} else {
 				console.log("NOT ROLLING")
 				// send current user position and  rotation in broadcast to all clients in game
@@ -516,7 +525,7 @@ io.on('connection', function (socket) {
 		console.log(data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
-		const userIndex = ALL_USERS.findIndex((u:any) => u.socketId === data.id);
+		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
 		if(userIndex >= 0){
 			ALL_USERS[userIndex] = data.message
 			console.log('Updated All users: ',ALL_USERS)
