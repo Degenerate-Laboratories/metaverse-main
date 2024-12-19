@@ -30,6 +30,13 @@ const TAG = " | CLUBMOON | "
 
 let wallet = SolanaLib.init({ mnemonic: seed })
 
+//FEATURE FLAGS
+let FEATURE_FLAGS = {
+	ROLL:false
+}
+
+let GARY_RAID_PARTY = []
+
 /*
 
         // get address
@@ -308,7 +315,7 @@ io.on('connection', function (socket) {
 		console.log("data: ", data)
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'MESSAGE', data }));
 		if (currentUser) {
-			if(data.message.indexOf('/roll') > -1){
+			if(data.message.indexOf('/roll') > -1 && FEATURE_FLAGS.ROLL){
 				//We need to find their paired wallet
 				const foundUser = ALL_USERS.find(user => user.id === data.id);
 				if(foundUser){
@@ -344,7 +351,7 @@ io.on('connection', function (socket) {
 				}
 
 
-			} else if(data.message.indexOf('/checkTx') > -1) {
+			} else if(data.message.indexOf('/checkTx') > -1 && FEATURE_FLAGS.ROLL) {
 				//lookup TX's for deposit
 				let incomingTransfers = await wallet.getIncomingTransfers("solana:mainnet", 10)
 				incomingTransfers.forEach(t => {
@@ -363,7 +370,7 @@ io.on('connection', function (socket) {
 						ROLL.partyBFunded = true;
 					}
 				});
-			} else if(data.message.indexOf('/accept') > -1){
+			} else if(data.message.indexOf('/accept') > -1 && FEATURE_FLAGS.ROLL){
 				console.log("ACCEPTING ROLL")
 				const foundUser = ALL_USERS.find(user => user.id === data.id);
 				if(foundUser){
@@ -417,8 +424,6 @@ io.on('connection', function (socket) {
 					console.error('USER HAS NO WALLET PAIRED!')
 					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to accept roll, You must first pair wallet!!');
 				}
-
-				
 			} else {
 				console.log("NOT ROLLING")
 				// send current user position and  rotation in broadcast to all clients in game
@@ -542,6 +547,8 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
+
+		//
 
 		if (currentUser) {
 			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
