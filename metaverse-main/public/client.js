@@ -33,9 +33,9 @@ window.addEventListener('load', function() {
 	});//END_SOCKET.ON
 
 					      
-	socket.on('JOIN_SUCCESS', function(id,name,posX,posY,posZ,model) {
+	socket.on('JOIN_SUCCESS', function(id,name,posX,posY,posZ,model,fightStarted) {
 				      		
-	  var currentUserAtr = id+':'+name+':'+posX+':'+posY+':'+posZ+':'+model;
+	  var currentUserAtr = id+':'+name+':'+posX+':'+posY+':'+posZ+':'+model+':'+fightStarted;
 	  
 	   if(window.unityInstance!=null)
 		{

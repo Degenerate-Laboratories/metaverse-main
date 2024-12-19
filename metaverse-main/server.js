@@ -31,6 +31,8 @@ const corsOptions = {
 }
 
 let garyNPCClientId = null;
+let gameData = {}
+
 app.use(cors(corsOptions)) // Use this after the variable declaration
 
 function getDistance(x1, y1, x2, y2) {
@@ -170,7 +172,7 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-join', JSON.stringify(currentUser));
 
-		
+
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
 		clients.push(currentUser);
@@ -182,7 +184,7 @@ io.on('connection', function (socket) {
 		/*********************************************************************************************/
 
 		//send to the client.js script
-		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
 		//send previous chats
 		previousChats.forEach(function (i) {
 			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
@@ -344,8 +346,8 @@ io.on('connection', function (socket) {
 
 		if (currentUser) {
 
-
-			if(_data == "False"){
+			gameData.fightStarted = _data
+			if (_data == "False") {
 
 				//reset npc health to 500
 				clientLookup[garyNPCClientId].health = 500;
@@ -367,11 +369,11 @@ io.on('connection', function (socket) {
 		// if (window.unityInstance != null) {
 		// 	// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
 		// 	window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile', currentUserAtr);
-	
+
 		// }
-	
+
 	});//END_SOCKET.ON
-	
+
 
 	//attack
 	socket.on('ATTACK', function (_data) {
@@ -387,23 +389,23 @@ io.on('connection', function (socket) {
 			//if (distance > minDistanceToPlayer) {
 
 			//	return;
-		//	} else {
-				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
+			//	} else {
+			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
-				//REDUCE VICTIM HEALTH
-				victimUser.health -= data.damage;
-				if (victimUser.health < 0) {
-					publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
+			//REDUCE VICTIM HEALTH
+			victimUser.health -= data.damage;
+			if (victimUser.health < 0) {
+				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
-				}
-				clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
-				//send to the client.js script
-				//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+			}
+			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
+			//send to the client.js script
+			//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-				//send to all 
-				io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+			//send to all 
+			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-		//	}
+			//	}
 
 		}
 	});//END_SOCKET_ON
@@ -440,22 +442,26 @@ io.on('connection', function (socket) {
 	});
 
 
+
+
 	// called when the user disconnect
 	socket.on('disconnect', function () {
-		if (currentUser) {
-			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
-			currentUser.isDead = true;
-			//send to the client.js script
-			//updates the currentUser disconnection for all players in game
-			socket.broadcast.emit('USER_DISCONNECTED', currentUser.id);
+		//	if (currentUser) {
+		publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
+		//send to the client.js script
+		//updates the currentUser disconnection for all players in game
+		console.log(socket.id)
+		for (let i = 0; i < clients.length; i++) {
+			if (clients[i].id == socket.id) {
+				console.log(clients[i])
 
-			for (let i = 0; i < clients.length; i++) {
-				if (clients[i].name == currentUser.name && clients[i].id == currentUser.id) {
-					console.log("User " + clients[i].name + " has disconnected");
-					clients.splice(i, 1);
-				};
+				console.log("User " + clients[i].name + " has disconnected");
+				clients[i].isDead = true;
+				socket.broadcast.emit('USER_DISCONNECTED', socket.id);
+				clients.splice(i, 1);
 			};
-		}
+		};
+		//	}
 	});//END_SOCKET_ON
 });//END_IO.ON
 
