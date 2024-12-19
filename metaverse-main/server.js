@@ -8,8 +8,12 @@
 */
 require("dotenv").config()
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
-if (!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
+if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
+if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
+const SolanaLib = require('solana-wallet-1').default
+
+let seed = process.env['WALLET_SEED']
+//if(!seed) throw Error('Missing WALLET_SEED in .env file')
 
 const express = require('express');//import express NodeJS framework module
 const app = express();// create an object of the express module
@@ -21,9 +25,68 @@ const OpenAI = require('openai');
 const openai = new OpenAI({
 	apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
 });
-
 const cors = require("cors");
 const TAG = " | CLUBMOON | "
+
+let wallet = SolanaLib.init({ mnemonic: seed })
+
+//FEATURE FLAGS
+let FEATURE_FLAGS = {
+	ROLL:false
+}
+
+let ALL_USERS = []
+let GARY_RAID_PARTY = []
+let REWARDS_SETTING = 100
+
+/*
+
+        // get address
+        let address = await wallet.getAddress()
+        console.log("Address:", address)
+
+
+        // get balance
+        let balance = await wallet.getBalance("solana:mainnet")
+        console.log("SOL Balance:", balance, "SOL")
+
+        let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
+        console.log("CLUBMOON Token Balance:", tokenBalance)
+
+        // get NFTs
+        let nfts = await wallet.getNfts("solana:mainnet")
+        console.log("NFT Count:", nfts.length)
+
+        // If you have NFTs, you can see them:
+        nfts.forEach((nft, i) => {
+            console.log(`NFT #${i+1}: ${nft.name} (${nft.address.toBase58()})`)
+        })
+
+        // send Solana (uncomment if you want to actually send; be sure you have enough SOL!)
+        // let sendSolTx = await wallet.sendSol("5RU2erdSLHU8oVEFVK82KCoTSpZt7a6J6gyXcfRVUj5v", 0.0001)
+        // console.log("Sent SOL Tx:", sendSolTx)
+
+        // send Token (again, be cautious and ensure you have these tokens)
+        // let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "5RU2erdSLHU8oVEFVK82KCoTSpZt7a6J6gyXcfRVUj5v", 1, "solana:mainnet", true)
+        // console.log("Sent Token Tx:", sendTokenTx)
+
+        // send NFT (be very careful, ensure you have the NFT in your wallet)
+        // let sendNftTx = await wallet.sendNft("NftMintAddressHere", "RecipientPublicKeyHere")
+        // console.log("Sent NFT Tx:", sendNftTx)
+
+ */
+
+let test_onStart = async function(){
+	try{
+		let address = await wallet.getAddress()
+		console.log("Address:", address)
+
+	}catch(e){
+		console.error(e)
+	}
+}
+test_onStart()
+
 const corsOptions = {
 	origin: '*',
 	credentials: true,            //access-control-allow-credentials:true
@@ -38,7 +101,6 @@ app.use(cors(corsOptions)) // Use this after the variable declaration
 function getDistance(x1, y1, x2, y2) {
 	let y = x2 - x1;
 	let x = y2 - y1;
-
 	return Math.sqrt(x * x + y * y);
 }
 
@@ -70,11 +132,21 @@ const clients = [];// to storage clients
 const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
 
+
 subscriber.subscribe('clubmoon-publish');
+
+let ROLL = {
+	partyA: null,
+	partyB: null,
+	amount: 0,
+	fundingPartA: null,
+	fundingPartB: null,
+}
 
 let text_to_voice = async function (text, voice, speed) {
 	let tag = TAG + " | text_to_voice | "
 	try {
+		console.log(tag,'text: ',text)
 		if (!voice) voice = 'echo'
 		if (!speed) speed = 1.0
 		// Call OpenAI API to generate audio
@@ -172,6 +244,12 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-join', JSON.stringify(currentUser));
 
+		let user = {
+			socketId: currentUser.id,
+			name: currentUser.name,
+		}
+		ALL_USERS.push(user)
+
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
@@ -230,7 +308,7 @@ io.on('connection', function (socket) {
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
-
+		GARY_SOCKET_ID = currentUser.id;
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
@@ -302,20 +380,142 @@ io.on('connection', function (socket) {
 	});//END_SOCKET.ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
-	socket.on('MESSAGE', function (_data) {
+	socket.on('MESSAGE', async function (_data) {
 		const data = JSON.parse(_data);
+		console.log("data: ", data)
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'MESSAGE', data }));
 		if (currentUser) {
-			// send current user position and  rotation in broadcast to all clients in game
-			socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
-			// send current user position and  rotation in broadcast to all clients in game
-			socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
+			if(data.message.indexOf('/roll') > -1 && FEATURE_FLAGS.ROLL){
+				//We need to find their paired wallet
+				const foundUser = ALL_USERS.find(user => user.id === data.id);
+				if(foundUser){
+					console.log("ROLLING")
+					//
+					if(ROLL.partyA == null){
+						//
+						ROLL.partyA = currentUser.id;
+						let amount = data.message.split(' ')[1];
+						if(!amount || isNaN(amount) || parseFloat(amount <= 0)){
+							console.error('Unable to create roll, invalid amount')
+							sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, invalid amount');
 
-			//push to chat history
-			previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
-			//remove if more than 10
-			if (previousChats.length > 10) {
-				previousChats.shift();
+							ROLL = {
+								partyA: null,
+								partyB: null,
+								amount: 0,
+							}
+						}
+						ROLL.amount = parseFloat(amount);
+						let address = await wallet.getAddress()
+						console.log("Address:", address)
+
+						console.log('data: ',data)
+						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+amount+" to this address to join the roll");
+						//
+					} else {
+						console.error('ROLL ALREADY START CAN NOT CLAIM!')
+					}
+				} else {
+					console.error('USER HAS NO WALLET PAIRED!')
+					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, You must first pair wallet!!');
+				}
+
+
+			} else if(data.message.indexOf('/checkTx') > -1 && FEATURE_FLAGS.ROLL) {
+				//lookup TX's for deposit
+				let incomingTransfers = await wallet.getIncomingTransfers("solana:mainnet", 10)
+				incomingTransfers.forEach(t => {
+					// Check if `t.from` matches any user in ALL_USERS
+					const matchedUser = ALL_USERS.find(user => user.id === t.from);
+
+					if (matchedUser) {
+						console.log("Found a matching user for t.from:", matchedUser);
+					}
+					if(ROLL.partyA == matchedUser.id){
+						console.log("FUNDED PARTY A")
+						ROLL.partyAFunded = true;
+					}
+					if(ROLL.partyB == matchedUser.id){
+						console.log("FUNDED PARTY B")
+						ROLL.partyBFunded = true;
+					}
+				});
+			} else if(data.message.indexOf('/accept') > -1 && FEATURE_FLAGS.ROLL){
+				console.log("ACCEPTING ROLL")
+				const foundUser = ALL_USERS.find(user => user.id === data.id);
+				if(foundUser){
+					if(ROLL.partyB == null){
+						console.log("ACCEPTING ROLL 2")
+						//
+						ROLL.partyB = currentUser.id;
+						let address = await wallet.getAddress()
+						console.log("Address:", address)
+
+						console.log('data: ',data)
+						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+ROLL.amount+" to this address to join the roll");
+
+						// Pick a random number between 1 and 100
+						const randomNumber = Math.floor(Math.random() * 100) + 1;
+						await text_to_voice('Roll has begun! The winner will be determined by a random number between 1 and 100. Good luck! .... '+randomNumber, 'nova',0.8)
+						console.log('randomNumber: ',randomNumber)
+						// Determine the winner
+						let winner;
+						if (randomNumber <= 50) {
+							winner = ROLL.partyA; // Party A wins if number ≤ 50
+							await text_to_voice('Winner! ' + ROLL.partyA + 'has won! ', 'nova',0.8)
+
+						} else {
+							winner = ROLL.partyB; // Party B wins otherwise
+							await text_to_voice('Winner! ' + ROLL.partyB + 'has won! ', 'nova',0.8)
+						}
+
+						// Calculate payout (amount * 1.8)
+						const payout = ROLL.amount * 1.8;
+						console.log('payout: ',payout)
+						// Send the payout to the winner
+						try {
+							//TODO pay the peeps
+							// const tx = await wallet.sendTransaction({
+							// 	to: winner,
+							// 	value: payout
+							// });
+							//
+							console.log("Payout transaction hash:", 'fakeTXIDBRO');
+							sockets[data.id].emit('UPDATE_MESSAGE', `The winner is ${winner}! ${payout} has been sent to the winner's address.`);
+						} catch (error) {
+							console.error("Error sending payout:", error);
+							sockets[data.id].emit('UPDATE_MESSAGE', `Failed to send payout to ${winner}. Please try again.`);
+						}
+						//send amount * 1.8 to winner
+					} else {
+						console.error("ROLL ALREADY COMPLETE! CAN NOT ACCEPT")
+					}
+				} else {
+					console.error('USER HAS NO WALLET PAIRED!')
+					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to accept roll, You must first pair wallet!!');
+				}
+			} else if(data.message.indexOf('/address') > -1){
+				let address = await wallet.getAddress()
+				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, address);
+			} else if(data.message.indexOf('/balance') > -1){
+				let balance = await wallet.getBalance("solana:mainnet")
+				let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
+				console.log("CLUBMOON Token Balance:", tokenBalance)
+				console.log("CLUBMOON Balance:", balance)
+				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, "SOL Balance: "+balance+" CLUBMOON Token Balance: "+tokenBalance);
+			} else {
+				console.log("NOT ROLLING")
+				// send current user position and  rotation in broadcast to all clients in game
+				socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
+				// send current user position and  rotation in broadcast to all clients in game
+				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
+
+				//push to chat history
+				previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
+				//remove if more than 10
+				if (previousChats.length > 10) {
+					previousChats.shift();
+				}
 			}
 		}
 	});//END_SOCKET_ON
@@ -325,6 +525,11 @@ io.on('connection', function (socket) {
 		console.log(data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
+		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
+		if(userIndex >= 0){
+			ALL_USERS[userIndex] = data.message
+			console.log('Updated All users: ',ALL_USERS)
+		}
 	});//END_SOCKET_ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
@@ -402,6 +607,7 @@ io.on('connection', function (socket) {
 	//fight started
 	socket.on('FIGHT_STARTED', function (_data) {
 
+		console.log("FIGHT_STARTED");
 		if (currentUser) {
 
 			gameData.fightStarted = _data
@@ -434,33 +640,55 @@ io.on('connection', function (socket) {
 
 
 	//attack
-	socket.on('ATTACK', function (_data) {
+	socket.on('ATTACK', async function (_data) {
 		//if player distance is less than 2 meters
 		//const minDistanceToPlayer = 2;
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
 
+		//
+
 		if (currentUser) {
-			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
+			//const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
 
-			//if (distance > minDistanceToPlayer) {
+			if(victimUser === garyNPCClientId){
+				console.log('Gary is being attacked')
+				let user = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
+				console.log('user Attacked gary!, ',user)
+				GARY_RAID_PARTY.push(user)
+				console.log('GARY_RAID_PARTY: ',GARY_RAID_PARTY)
+			}
 
-			//	return;
-			//	} else {
+
 			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
 			//REDUCE VICTIM HEALTH
 			victimUser.health -= data.damage;
 			if (victimUser.health < 0) {
+				//text_to_voice('Gary Has been Defeated!', 'nova', .8);
+
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
+
+				//TODO payout sol
+
+				for(let i = 0; i < GARY_RAID_PARTY.length; i++){
+					let user = ALL_USERS[GARY_RAID_PARTY[i]]
+					console.log('user: ',user)
+
+					//
+					//let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", user.amount, REWARDS_SETTING, "solana:mainnet", true)
+					console.log("Sent Token Tx:", sendTokenTx)
+
+					//text_to_voice('user: '+user.name+' has been rewarded '+REWARDS_SETTING+' club moon', 'nova', .8);
+				}
 
 			}
 			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
 			//send to the client.js script
 			//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
-			//send to all 
+			//send to all
 			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 
 			//	}
@@ -525,7 +753,7 @@ io.on('connection', function (socket) {
 
 
 function gameloop() {
-	//spawn all connected clients for currentUser client 
+	//spawn all connected clients for currentUser client
 	clients.forEach(function (u) {
 
 		//check if not model
