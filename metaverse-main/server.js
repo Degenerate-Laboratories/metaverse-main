@@ -666,7 +666,7 @@ io.on('connection', function (socket) {
 			//REDUCE VICTIM HEALTH
 			victimUser.health -= data.damage;
 			if (victimUser.health < 0) {
-				text_to_voice('Gary Has been Defeated!', 'nova', .8);
+				//text_to_voice('Gary Has been Defeated!', 'nova', .8);
 
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
@@ -677,10 +677,10 @@ io.on('connection', function (socket) {
 					console.log('user: ',user)
 
 					//
-					let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", user.amount, REWARDS_SETTING, "solana:mainnet", true)
+					//let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", user.amount, REWARDS_SETTING, "solana:mainnet", true)
 					console.log("Sent Token Tx:", sendTokenTx)
 
-					text_to_voice('user: '+user.name+' has been rewarded '+REWARDS_SETTING+' club moon', 'nova', .8);
+					//text_to_voice('user: '+user.name+' has been rewarded '+REWARDS_SETTING+' club moon', 'nova', .8);
 				}
 
 			}
