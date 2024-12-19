@@ -35,7 +35,9 @@ let FEATURE_FLAGS = {
 	ROLL:false
 }
 
+let ALL_USERS = []
 let GARY_RAID_PARTY = []
+let REWARDS_SETTING = 100
 
 /*
 
@@ -141,8 +143,6 @@ let ROLL = {
 	fundingPartB: null,
 }
 
-let ALL_USERS = []
-
 let text_to_voice = async function (text, voice, speed) {
 	let tag = TAG + " | text_to_voice | "
 	try {
@@ -244,6 +244,12 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-join', JSON.stringify(currentUser));
 
+		let user = {
+			socketId: currentUser.id,
+			name: currentUser.name,
+		}
+		ALL_USERS.push(user)
+
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
@@ -302,7 +308,7 @@ io.on('connection', function (socket) {
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
-
+		GARY_SOCKET_ID = currentUser.id;
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		//add currentUser in clients list
@@ -510,12 +516,11 @@ io.on('connection', function (socket) {
 		console.log(data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
-		ALL_USERS.push(
-			{
-				id: data.id,
-				address: data.message
-			}
-		)
+		const userIndex = ALL_USERS.findIndex((u:any) => u.socketId === data.id);
+		if(userIndex >= 0){
+			ALL_USERS[userIndex] = data.message
+			console.log('Updated All users: ',ALL_USERS)
+		}
 	});//END_SOCKET_ON
 
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
@@ -626,7 +631,7 @@ io.on('connection', function (socket) {
 
 
 	//attack
-	socket.on('ATTACK', function (_data) {
+	socket.on('ATTACK', async function (_data) {
 		//if player distance is less than 2 meters
 		//const minDistanceToPlayer = 2;
 		const data = JSON.parse(_data);
@@ -636,18 +641,38 @@ io.on('connection', function (socket) {
 		//
 
 		if (currentUser) {
-			const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
+			//const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
 
-			//if (distance > minDistanceToPlayer) {
+			if(victimUser === garyNPCClientId){
+				console.log('Gary is being attacked')
+				let user = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
+				console.log('user Attacked gary!, ',user)
+				GARY_RAID_PARTY.push(user)
+				console.log('GARY_RAID_PARTY: ',GARY_RAID_PARTY)
+			}
 
-			//	return;
-			//	} else {
+
 			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
 			//REDUCE VICTIM HEALTH
 			victimUser.health -= data.damage;
 			if (victimUser.health < 0) {
+				text_to_voice('Gary Has been Defeated!', 'nova', .8);
+
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
+
+				//TODO payout sol
+
+				for(let i = 0; i < GARY_RAID_PARTY.length; i++){
+					let user = ALL_USERS[GARY_RAID_PARTY[i]]
+					console.log('user: ',user)
+
+					//
+					let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", user.amount, REWARDS_SETTING, "solana:mainnet", true)
+					console.log("Sent Token Tx:", sendTokenTx)
+
+					text_to_voice('user: '+user.name+' has been rewarded '+REWARDS_SETTING+' club moon', 'nova', .8);
+				}
 
 			}
 			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
