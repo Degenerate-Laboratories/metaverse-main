@@ -202,6 +202,64 @@ io.on('connection', function (socket) {
 		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
 	});//END_SOCKET_ON
 
+	socket.on('JOIN_NPC', function (_data) {
+		const data = JSON.parse(_data);
+		// fills out with the information emitted by the player in the unity
+		currentUser = {
+			name: data.name,
+			publicAddress: data.publicAddress,
+			model: data.model,
+			posX: data.posX,
+			posY: data.posY,
+			posZ: data.posZ,
+			rotation: '0',
+			id: socket.id,//alternatively we could use socket.id
+			socketID: socket.id,//fills out with the id of the socket that was open
+			muteUsers: [],
+			muteAll: false,
+			isMute: true,
+			health: 100
+		};//new user  in clients list
+
+		//this is npc health
+		if (data.model == -1) {
+			currentUser.health = 500
+			garyNPCClientId = currentUser.id;
+		}
+
+		console.log('[INFO] player ' + currentUser.name + ': logged!');
+		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
+		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
+
+
+		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
+		//add currentUser in clients list
+		clients.push(currentUser);
+
+		//add client in search engine
+		clientLookup[currentUser.id] = currentUser;
+		sockets[currentUser.id] = socket;//add curent user socket
+		console.log('[INFO] Total players: ' + clients.length);
+		/*********************************************************************************************/
+
+		//send to the client.js script
+		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
+		//send previous chats
+		previousChats.forEach(function (i) {
+			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
+		});
+
+		//spawn all connected clients for currentUser client
+		clients.forEach(function (i) {
+			if (i.id != currentUser.id) {
+				//send to the client.js script
+				socket.emit('SPAWN_PLAYER', i.id, i.name, i.posX, i.posY, i.posZ, i.model);
+			}//END_IF
+		});//end_forEach
+
+		// spawn currentUser client on clients in broadcast
+		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
+	});//END_SOCKET_ON
 	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('MOVE_AND_ROTATE', function (_data) {
 		const data = JSON.parse(_data);
