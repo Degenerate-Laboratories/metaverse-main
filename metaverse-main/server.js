@@ -51,6 +51,7 @@ let test_onStart = async function(){
 	try{
 		let address = await wallet.getAddress()
 		console.log("Address:", address)
+
 	}catch(e){
 		console.error(e)
 	}
