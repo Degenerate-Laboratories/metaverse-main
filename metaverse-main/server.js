@@ -13,7 +13,7 @@ if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CON
 const SolanaLib = require('solana-wallet-1').default
 
 let seed = process.env['WALLET_SEED']
-//if(!seed) throw Error('Missing WALLET_SEED in .env file')
+// if(!seed) throw Error('Missing WALLET_SEED in .env file')
 
 const express = require('express');//import express NodeJS framework module
 const app = express();// create an object of the express module
@@ -37,50 +37,20 @@ let FEATURE_FLAGS = {
 
 let ALL_USERS = []
 let GARY_RAID_PARTY = []
-let REWARDS_SETTING = 100
+let IS_PAYED_OUT = false; // tracks whether payouts have occurred for current raid
+let REWARDS_TOTAL = 10000; // total reward to distribute among participants
 
-/*
+// Store Gary deaths history
+let GARRY_DEATHS = [];
 
-        // get address
-        let address = await wallet.getAddress()
-        console.log("Address:", address)
-
-
-        // get balance
-        let balance = await wallet.getBalance("solana:mainnet")
-        console.log("SOL Balance:", balance, "SOL")
-
-        let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
-        console.log("CLUBMOON Token Balance:", tokenBalance)
-
-        // get NFTs
-        let nfts = await wallet.getNfts("solana:mainnet")
-        console.log("NFT Count:", nfts.length)
-
-        // If you have NFTs, you can see them:
-        nfts.forEach((nft, i) => {
-            console.log(`NFT #${i+1}: ${nft.name} (${nft.address.toBase58()})`)
-        })
-
-        // send Solana (uncomment if you want to actually send; be sure you have enough SOL!)
-        // let sendSolTx = await wallet.sendSol("5RU2erdSLHU8oVEFVK82KCoTSpZt7a6J6gyXcfRVUj5v", 0.0001)
-        // console.log("Sent SOL Tx:", sendSolTx)
-
-        // send Token (again, be cautious and ensure you have these tokens)
-        // let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "5RU2erdSLHU8oVEFVK82KCoTSpZt7a6J6gyXcfRVUj5v", 1, "solana:mainnet", true)
-        // console.log("Sent Token Tx:", sendTokenTx)
-
-        // send NFT (be very careful, ensure you have the NFT in your wallet)
-        // let sendNftTx = await wallet.sendNft("NftMintAddressHere", "RecipientPublicKeyHere")
-        // console.log("Sent NFT Tx:", sendNftTx)
-
- */
+// Track damage dealt by each user in the current raid
+// key: user socketId, value: total damage done
+let USER_DAMAGE_CURRENT_RAID = {};
 
 let test_onStart = async function(){
 	try{
 		let address = await wallet.getAddress()
 		console.log("Address:", address)
-
 	}catch(e){
 		console.error(e)
 	}
@@ -122,16 +92,13 @@ function setCustomCacheControl(res, path) {
 app.use("/public/TemplateData", express.static(__dirname + "/public/TemplateData"));
 app.use("/public/Build", express.static(__dirname + "/public/Build"));
 app.use(express.static(path.join(__dirname, 'public'), {
-	//	maxAge: '5d',
 	setHeaders: setCustomCacheControl
 }))
-
 
 let previousChats = [];
 const clients = [];// to storage clients
 const clientLookup = {};// clients search engine
 const sockets = {};//// to storage sockets
-
 
 subscriber.subscribe('clubmoon-publish');
 
@@ -152,29 +119,22 @@ let text_to_voice = async function (text, voice, speed) {
 		// Call OpenAI API to generate audio
 		const response = await openai.audio.speech.create({
 			input: text,
-			//'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
-			voice, // Replace with desired voice type
+			voice, // 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
 			speed,
-			model: 'tts-1', // Replace with your selected TTS model
+			model: 'tts-1',
 		});
 
-		// Validate that the response body is a readable stream
 		if (!response.body || typeof response.body.pipe !== 'function') {
 			throw new Error('Response body is missing or not a stream.');
 		}
 
-		// Read the stream into a buffer
 		const chunks = [];
 		for await (const chunk of response.body) {
 			chunks.push(chunk);
 		}
 		const audioBuffer = Buffer.concat(chunks);
-
-		// Encode audio to base64
 		const base64Audio = audioBuffer.toString('base64');
 		const audioDataURI = `data:audio/mp3;base64,${base64Audio}`;
-
-		// Emit the audio data to all connected clients
 		io.emit('UPDATE_VOICE', audioDataURI);
 	} catch (e) {
 		console.error(e)
@@ -192,32 +152,24 @@ subscriber.on('message', async function (channel, payloadS) {
 		}
 	} catch (e) {
 		console.error()
-		//throw e
 	}
 });
 
-
-//open a connection with the specific client
 io.on('connection', function (socket) {
 	console.log('A user ready for connection!');
 
-	//to store current client connection
 	let currentUser;
 	const sended = false;
 	const muteAll = false;
 
-	//create a callback fuction to listening EmitPing() method in NetworkMannager.cs unity script
 	socket.on('PING', function (_pack) {
 		const pack = JSON.parse(_pack);
 		console.log('message from user# ' + socket.id + ": " + pack.msg);
-		//emit back to NetworkManager in Unity by client.js script
 		socket.emit('PONG', socket.id, pack.msg);
 	});
 
-	//create a callback fuction to listening EmitJoin() method in NetworkMannager.cs unity script
 	socket.on('JOIN', function (_data) {
 		const data = JSON.parse(_data);
-		// fills out with the information emitted by the player in the unity
 		currentUser = {
 			name: data.name,
 			publicAddress: data.publicAddress,
@@ -226,15 +178,14 @@ io.on('connection', function (socket) {
 			posY: data.posY,
 			posZ: data.posZ,
 			rotation: '0',
-			id: socket.id,//alternatively we could use socket.id
-			socketID: socket.id,//fills out with the id of the socket that was open
+			id: socket.id,
+			socketID: socket.id,
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
 			health: 100
-		};//new user  in clients list
+		};
 
-		//this is npc health
 		if (data.model == -1) {
 			currentUser.health = 500
 			garyNPCClientId = currentUser.id;
@@ -250,39 +201,30 @@ io.on('connection', function (socket) {
 		}
 		ALL_USERS.push(user)
 
-
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
-		//add currentUser in clients list
+
 		clients.push(currentUser);
-
-		//add client in search engine
 		clientLookup[currentUser.id] = currentUser;
-		sockets[currentUser.id] = socket;//add curent user socket
+		sockets[currentUser.id] = socket;
 		console.log('[INFO] Total players: ' + clients.length);
-		/*********************************************************************************************/
 
-		//send to the client.js script
 		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
-		//send previous chats
+
 		previousChats.forEach(function (i) {
 			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
 		});
 
-		//spawn all connected clients for currentUser client
 		clients.forEach(function (i) {
 			if (i.id != currentUser.id) {
-				//send to the client.js script
 				socket.emit('SPAWN_PLAYER', i.id, i.name, i.posX, i.posY, i.posZ, i.model);
-			}//END_IF
-		});//end_forEach
+			}
+		});
 
-		// spawn currentUser client on clients in broadcast
 		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
-	});//END_SOCKET_ON
+	});
 
 	socket.on('JOIN_NPC', function (_data) {
 		const data = JSON.parse(_data);
-		// fills out with the information emitted by the player in the unity
 		currentUser = {
 			name: data.name,
 			publicAddress: data.publicAddress,
@@ -291,15 +233,14 @@ io.on('connection', function (socket) {
 			posY: data.posY,
 			posZ: data.posZ,
 			rotation: '0',
-			id: socket.id,//alternatively we could use socket.id
-			socketID: socket.id,//fills out with the id of the socket that was open
+			id: socket.id,
+			socketID: socket.id,
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
 			health: 100
-		};//new user  in clients list
+		};
 
-		//this is npc health
 		if (data.model == -1) {
 			currentUser.health = 500
 			garyNPCClientId = currentUser.id;
@@ -311,107 +252,73 @@ io.on('connection', function (socket) {
 		GARY_SOCKET_ID = currentUser.id;
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
-		//add currentUser in clients list
 		clients.push(currentUser);
-
-		//add client in search engine
 		clientLookup[currentUser.id] = currentUser;
-		sockets[currentUser.id] = socket;//add curent user socket
+		sockets[currentUser.id] = socket;
 		console.log('[INFO] Total players: ' + clients.length);
-		/*********************************************************************************************/
 
-		//send to the client.js script
 		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
-		//send previous chats
+
 		previousChats.forEach(function (i) {
 			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
 		});
 
-		//spawn all connected clients for currentUser client
 		clients.forEach(function (i) {
 			if (i.id != currentUser.id) {
-				//send to the client.js script
 				socket.emit('SPAWN_PLAYER', i.id, i.name, i.posX, i.posY, i.posZ, i.model);
-			}//END_IF
-		});//end_forEach
+			}
+		});
 
-		// spawn currentUser client on clients in broadcast
 		socket.broadcast.emit('SPAWN_PLAYER', currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model);
-	});//END_SOCKET_ON
-	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
+	});
+
 	socket.on('MOVE_AND_ROTATE', function (_data) {
 		const data = JSON.parse(_data);
-
 		if (currentUser) {
 			currentUser.posX = data.posX;
 			currentUser.posY = data.posY;
 			currentUser.posZ = data.posZ;
 			currentUser.rotation = data.rotation;
-			// send current user position and  rotation in broadcast to all clients in game
 			socket.broadcast.emit('UPDATE_MOVE_AND_ROTATE', currentUser.id, currentUser.posX, currentUser.posY, currentUser.posZ, currentUser.rotation);
 		}
-	});//END_SOCKET_ON
+	});
 
-
-	//create a callback fuction to listening EmitAnimation() method in NetworkMannager.cs unity script
 	socket.on('ANIMATION', function (_data) {
 		const data = JSON.parse(_data);
-
 		if (currentUser) {
 			currentUser.timeOut = 0;
-			//send to the client.js script
-			//updates the animation of the player for the other game clients
 			socket.broadcast.emit('UPDATE_PLAYER_ANIMATOR', currentUser.id, data.key, data.value, data.type);
-		}//END_IF
-	});//END_SOCKET_ON
+		}
+	});
 
-	//create a callback fuction to listening EmitGetBestKillers() method in NetworkMannager.cs unity script
 	socket.on('GET_USERS_LIST', function (pack) {
-
 		if (currentUser) {
-			//spawn all connected clients for currentUser client
 			clients.forEach(function (i) {
 				if (i.id != currentUser.id) {
-					//send to the client.js script
 					socket.emit('UPDATE_USER_LIST', i.id, i.name, i.publicAddress);
-				}//END_IF
-			});//end_forEach
+				}
+			});
 		}
-	});//END_SOCKET.ON
+	});
 
-	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('MESSAGE', async function (_data) {
 		const data = JSON.parse(_data);
-		console.log("data: ", data)
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'MESSAGE', data }));
 		if (currentUser) {
 			if(data.message.indexOf('/roll') > -1 && FEATURE_FLAGS.ROLL){
-				//We need to find their paired wallet
 				const foundUser = ALL_USERS.find(user => user.id === data.id);
 				if(foundUser){
-					console.log("ROLLING")
-					//
 					if(ROLL.partyA == null){
-						//
 						ROLL.partyA = currentUser.id;
 						let amount = data.message.split(' ')[1];
 						if(!amount || isNaN(amount) || parseFloat(amount <= 0)){
 							console.error('Unable to create roll, invalid amount')
 							sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, invalid amount');
-
-							ROLL = {
-								partyA: null,
-								partyB: null,
-								amount: 0,
-							}
+							ROLL = { partyA: null, partyB: null, amount: 0 }
 						}
 						ROLL.amount = parseFloat(amount);
 						let address = await wallet.getAddress()
-						console.log("Address:", address)
-
-						console.log('data: ',data)
 						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+amount+" to this address to join the roll");
-						//
 					} else {
 						console.error('ROLL ALREADY START CAN NOT CLAIM!')
 					}
@@ -419,15 +326,10 @@ io.on('connection', function (socket) {
 					console.error('USER HAS NO WALLET PAIRED!')
 					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, You must first pair wallet!!');
 				}
-
-
 			} else if(data.message.indexOf('/checkTx') > -1 && FEATURE_FLAGS.ROLL) {
-				//lookup TX's for deposit
 				let incomingTransfers = await wallet.getIncomingTransfers("solana:mainnet", 10)
 				incomingTransfers.forEach(t => {
-					// Check if `t.from` matches any user in ALL_USERS
 					const matchedUser = ALL_USERS.find(user => user.id === t.from);
-
 					if (matchedUser) {
 						console.log("Found a matching user for t.from:", matchedUser);
 					}
@@ -441,52 +343,35 @@ io.on('connection', function (socket) {
 					}
 				});
 			} else if(data.message.indexOf('/accept') > -1 && FEATURE_FLAGS.ROLL){
-				console.log("ACCEPTING ROLL")
 				const foundUser = ALL_USERS.find(user => user.id === data.id);
 				if(foundUser){
 					if(ROLL.partyB == null){
-						console.log("ACCEPTING ROLL 2")
-						//
 						ROLL.partyB = currentUser.id;
 						let address = await wallet.getAddress()
-						console.log("Address:", address)
-
-						console.log('data: ',data)
 						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+ROLL.amount+" to this address to join the roll");
 
-						// Pick a random number between 1 and 100
 						const randomNumber = Math.floor(Math.random() * 100) + 1;
 						await text_to_voice('Roll has begun! The winner will be determined by a random number between 1 and 100. Good luck! .... '+randomNumber, 'nova',0.8)
-						console.log('randomNumber: ',randomNumber)
-						// Determine the winner
+
 						let winner;
 						if (randomNumber <= 50) {
-							winner = ROLL.partyA; // Party A wins if number ≤ 50
+							winner = ROLL.partyA;
 							await text_to_voice('Winner! ' + ROLL.partyA + 'has won! ', 'nova',0.8)
-
 						} else {
-							winner = ROLL.partyB; // Party B wins otherwise
+							winner = ROLL.partyB;
 							await text_to_voice('Winner! ' + ROLL.partyB + 'has won! ', 'nova',0.8)
 						}
 
-						// Calculate payout (amount * 1.8)
 						const payout = ROLL.amount * 1.8;
 						console.log('payout: ',payout)
-						// Send the payout to the winner
 						try {
-							//TODO pay the peeps
-							// const tx = await wallet.sendTransaction({
-							// 	to: winner,
-							// 	value: payout
-							// });
-							//
+							//TODO send payout
 							console.log("Payout transaction hash:", 'fakeTXIDBRO');
 							sockets[data.id].emit('UPDATE_MESSAGE', `The winner is ${winner}! ${payout} has been sent to the winner's address.`);
 						} catch (error) {
 							console.error("Error sending payout:", error);
 							sockets[data.id].emit('UPDATE_MESSAGE', `Failed to send payout to ${winner}. Please try again.`);
 						}
-						//send amount * 1.8 to winner
 					} else {
 						console.error("ROLL ALREADY COMPLETE! CAN NOT ACCEPT")
 					}
@@ -496,33 +381,36 @@ io.on('connection', function (socket) {
 				}
 			} else if(data.message.indexOf('/address') > -1){
 				let address = await wallet.getAddress()
-				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, address);
+				socket.emit('UPDATE_MESSAGE', currentUser.id, address);
 			} else if(data.message.indexOf('/balance') > -1){
 				let balance = await wallet.getBalance("solana:mainnet")
 				let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
-				console.log("CLUBMOON Token Balance:", tokenBalance)
-				console.log("CLUBMOON Balance:", balance)
-				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, "SOL Balance: "+balance+" CLUBMOON Token Balance: "+tokenBalance);
+				let message = "SOL Balance "+balance.toString()+" CLUBMOON Token Balance "+tokenBalance.toString()
+				socket.emit('UPDATE_MESSAGE', currentUser.id, message);
+			} else if(data.message.indexOf('/gary') > -1){
+				let message = "Gary Death History:\n";
+				if(GARRY_DEATHS.length === 0) {
+					message += "No Gary deaths recorded yet.";
+				} else {
+					GARRY_DEATHS.forEach((death, index) => {
+						let date = new Date(death.time).toLocaleString();
+						message += `Death #${(index+1)} at ${date} | Participants: ${death.users.length} | Users: ${death.users.join(', ')}\n`;
+					});
+				}
+				socket.emit('UPDATE_MESSAGE', currentUser.id, message);
 			} else {
-				console.log("NOT ROLLING")
-				// send current user position and  rotation in broadcast to all clients in game
 				socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
-				// send current user position and  rotation in broadcast to all clients in game
 				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
-
-				//push to chat history
 				previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
-				//remove if more than 10
 				if (previousChats.length > 10) {
 					previousChats.shift();
 				}
 			}
 		}
-	});//END_SOCKET_ON
+	});
 
 	socket.on('WALLETMESSAGE', function (_data) {
 		const data = JSON.parse(_data);
-		console.log(data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
 		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
@@ -530,47 +418,37 @@ io.on('connection', function (socket) {
 			ALL_USERS[userIndex] = data.message
 			console.log('Updated All users: ',ALL_USERS)
 		}
-	});//END_SOCKET_ON
+	});
 
-	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('PRIVATE_MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'PRIVATE_MESSAGE', data }));
 		if (currentUser) {
-			// send current user position and  rotation in broadcast to all clients in game
 			socket.emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
 			sockets[data.guest_id].emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
 		}
-	});//END_SOCKET_ON
+	});
 
-	//create a callback fuction to listening EmitMoveAndRotate() method in NetworkMannager.cs unity script
 	socket.on('SEND_OPEN_CHAT_BOX', function (_data) {
 		const data = JSON.parse(_data);
 		if (currentUser) {
-			// send current user position and  rotation in broadcast to all clients in game
 			socket.emit('RECEIVE_OPEN_CHAT_BOX', currentUser.id, data.player_id);
-
-			//spawn all connected clients for currentUser client
 			clients.forEach(function (i) {
 				if (i.id == data.player_id) {
-					console.log("send to : " + i.name);
-					//send to the client.js script
 					sockets[i.id].emit('RECEIVE_OPEN_CHAT_BOX', currentUser.id, i.id);
-				}//END_IF
-			});//end_forEach
+				}
+			});
 		}
-	});//END_SOCKET_ON
+	});
 
 	socket.on('MUTE_ALL_USERS', function () {
-
 		if (currentUser) {
 			currentUser.muteAll = true;
 			clients.forEach(function (u) {
 				currentUser.muteUsers.push(clientLookup[u.id]);
 			});
 		}
-	});//END_SOCKET_ON
-
+	});
 
 	socket.on('REMOVE_MUTE_ALL_USERS', function () {
 		if (currentUser) {
@@ -579,122 +457,132 @@ io.on('connection', function (socket) {
 				currentUser.muteUsers.pop();
 			}
 		}
-	});//END_SOCKET_ON
+	});
 
 	socket.on('ADD_MUTE_USER', function (_data) {
 		const data = JSON.parse(_data);
 		if (currentUser) {
-			//console.log("data.id: "+data.id);
 			console.log("add mute user: " + clientLookup[data.id].name);
 			currentUser.muteUsers.push(clientLookup[data.id]);
 		}
-	});//END_SOCKET_ON
+	});
 
 	socket.on('REMOVE_MUTE_USER', function (_data) {
 		const data = JSON.parse(_data);
 		if (currentUser) {
-			for (const i = 0; i < currentUser.muteUsers.length; i++) {
+			for (let i = 0; i < currentUser.muteUsers.length; i++) {
 				if (currentUser.muteUsers[i].id == data.id) {
 					console.log("User " + currentUser.muteUsers[i].name + " has removed from the mute users list");
 					currentUser.muteUsers.splice(i, 1);
 				};
 			};
 		}
-	});//END_SOCKET_ON
+	});
 
-
-
-	//fight started
 	socket.on('FIGHT_STARTED', function (_data) {
-
 		console.log("FIGHT_STARTED");
 		if (currentUser) {
-
 			gameData.fightStarted = _data
 			if (_data == "False") {
-
-				//reset npc health to 500
 				clientLookup[garyNPCClientId].health = 500;
-
 			}
-			//send to the client.js script
-			//updates the animation of the player for the other game clients
 			socket.broadcast.emit('FIGHT_STARTED', _data);
-
-		}//END_IF
-
-	});//END_SOCKET_ON
+		}
+	});
 
 	socket.on('SPAWN_PROJECTILE', function (_data) {
-
 		const data = JSON.parse(_data);
 		io.emit('SPAWN_PROJECTILE', _data);
+	});
 
-		// if (window.unityInstance != null) {
-		// 	// sends the package currentUserAtr to the method OnUpdateHealth in the NetworkManager class on Unity
-		// 	window.unityInstance.SendMessage('NetworkManager', 'OnSpawnProjectile', currentUserAtr);
-
-		// }
-
-	});//END_SOCKET.ON
-
-
-	//attack
 	socket.on('ATTACK', async function (_data) {
-		//if player distance is less than 2 meters
-		//const minDistanceToPlayer = 2;
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
 
-		//
-
 		if (currentUser) {
-			//const distance = getDistance(parseFloat(attackerUser.posX), parseFloat(attackerUser.posY), parseFloat(victimUser.posX), parseFloat(victimUser.posY))
-
-			if(victimUser === garyNPCClientId){
+			if(victimUser && victimUser.id === garyNPCClientId){
 				console.log('Gary is being attacked')
-				let user = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
-				console.log('user Attacked gary!, ',user)
-				GARY_RAID_PARTY.push(user)
-				console.log('GARY_RAID_PARTY: ',GARY_RAID_PARTY)
+				let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
+				console.log('user Attacked gary!, ', userIndex)
+				if (userIndex > -1) {
+					if (!GARY_RAID_PARTY.includes(userIndex)) {
+						GARY_RAID_PARTY.push(userIndex)
+					}
+					// Track damage
+					USER_DAMAGE_CURRENT_RAID[attackerUser.id] = (USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + data.damage;
+				}
 			}
-
 
 			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
 
-			//REDUCE VICTIM HEALTH
 			victimUser.health -= data.damage;
 			if (victimUser.health < 0) {
 				text_to_voice('Gary Has been Defeated!', 'nova', .8);
-
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
-				//TODO payout sol
+				// Record this Gary death
+				let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
+				GARRY_DEATHS.push({
+					time: Date.now(),
+					users: participants
+				});
 
-				for(let i = 0; i < GARY_RAID_PARTY.length; i++){
-					let user = ALL_USERS[GARY_RAID_PARTY[i]]
-					console.log('user: ',user)
+				// Only pay out if not already done for this defeat
+				if (!IS_PAYED_OUT) {
+					IS_PAYED_OUT = true;
+					const numParticipants = GARY_RAID_PARTY.length;
 
-					//
-					let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", user.amount, REWARDS_SETTING, "solana:mainnet", true)
-					console.log("Sent Token Tx:", sendTokenTx)
+					if (numParticipants > 0) {
+						// Calculate total damage
+						let totalDamage = 0;
+						GARY_RAID_PARTY.forEach(ui => {
+							let userSocketId = ALL_USERS[ui].socketId;
+							let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
+							totalDamage += dmg;
+						});
 
-					text_to_voice('user: '+user.name+' has been rewarded '+REWARDS_SETTING+' club moon', 'nova', .8);
+						for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
+							let userIndex = GARY_RAID_PARTY[i];
+							let user = ALL_USERS[userIndex];
+							let userDamage = USER_DAMAGE_CURRENT_RAID[user.socketId] || 0;
+							let userShare = 0;
+							if (totalDamage > 0) {
+								userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
+							}
+
+							// Send reward tokens proportionally
+							if (userShare > 0) {
+								let sendTokenTx = await wallet.sendToken(
+									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+									user.amount,
+									userShare,
+									"solana:mainnet",
+									true
+								);
+								console.log("Sent Token Tx:", sendTokenTx);
+								text_to_voice('user: ' + user.name + ' has been rewarded ' + userShare + ' club moon', 'nova', .8);
+							} else {
+								console.log("User " + user.name + " did no damage or zero share");
+							}
+						}
+					} else {
+						console.log("No participants in GARY_RAID_PARTY, no rewards distributed.");
+					}
+
+					// Set a single setTimeout of 15 minutes to reset state after payouts
+					setTimeout(() => {
+						IS_PAYED_OUT = false;
+						GARY_RAID_PARTY = [];
+						USER_DAMAGE_CURRENT_RAID = {};
+						console.log("Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes.");
+					}, 15 * 60 * 1000);
 				}
-
 			}
 			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
-			//send to the client.js script
-			//socket.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
-
-			//send to all
 			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
-
-			//	}
-
 		}
-	});//END_SOCKET_ON
+	});
 
 	socket.on("VOICE", function (data) {
 		const minDistanceToPlayer = 3;
@@ -705,14 +593,13 @@ io.on('connection', function (socket) {
 			clients.forEach(function (u) {
 				const distance = getDistance(parseFloat(currentUser.posX), parseFloat(currentUser.posY), parseFloat(u.posX), parseFloat(u.posY))
 				let muteUser = false;
-				for (const i = 0; i < currentUser.muteUsers.length; i++) {
+				for (let i = 0; i < currentUser.muteUsers.length; i++) {
 					if (currentUser.muteUsers[i].id == u.id) {
 						muteUser = true;
 					};
 				};
 
 				if (sockets[u.id] && u.id != currentUser.id && !currentUser.isMute && distance < minDistanceToPlayer && !muteUser && !sockets[u.id].muteAll) {
-					//sockets[u.id].emit('UPDATE_VOICE',currentUser.id,newData);
 					sockets[u.id].emit('UPDATE_VOICE', newData);
 					sockets[u.id].broadcast.emit('SEND_USER_VOICE_INFO', currentUser.id);
 				}
@@ -723,73 +610,47 @@ io.on('connection', function (socket) {
 	socket.on("AUDIO_MUTE", function (data) {
 		if (currentUser) {
 			currentUser.isMute = !currentUser.isMute;
-
 		}
 	});
 
-
-
-
-	// called when the user disconnect
 	socket.on('disconnect', function () {
-		//	if (currentUser) {
 		publisher.publish('clubmoon-events', JSON.stringify({ channel: 'DISCONNECT', data: currentUser, event: 'LEAVE' }));
-		//send to the client.js script
-		//updates the currentUser disconnection for all players in game
-		console.log(socket.id)
 		for (let i = 0; i < clients.length; i++) {
 			if (clients[i].id == socket.id) {
-				console.log(clients[i])
-
 				console.log("User " + clients[i].name + " has disconnected");
 				clients[i].isDead = true;
 				socket.broadcast.emit('USER_DISCONNECTED', socket.id);
 				clients.splice(i, 1);
 			};
 		};
-		//	}
-	});//END_SOCKET_ON
-});//END_IO.ON
-
+	});
+});
 
 function gameloop() {
-	//spawn all connected clients for currentUser client
 	clients.forEach(function (u) {
-
-		//check if not model
 		if (u.model != -1) {
-			// if not attacked since 5s retunr to 100 health
 			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 6000) {
 				u.health = 100;
-
-				//send to the client.js script
-				sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+				if (sockets[u.socketID]) {
+					sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+				}
 			}
-
-
-		}
-		else {
+		} else {
 			//npc
 			if (u.health < 0) {
-				//send to the client.js script
 				//reset npc health after 10s
 				setTimeout(function () {
 					u.health = 500;
-					sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+					if (sockets[u.socketID]) {
+						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+					}
 				}, 10000);
-
 			}
-
 		}
-
-
-
-	});//end_forEach
-
+	});
 }
 
 setInterval(gameloop, 1000);
-
 
 http.listen(process.env.PORT || 3000, function () {
 	console.log('listening on *:3000');
