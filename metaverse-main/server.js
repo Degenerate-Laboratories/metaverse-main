@@ -315,7 +315,7 @@ io.on('connection', function (socket) {
 			} else if(data.message.indexOf('/balance') > -1) {
 				let balance = await wallet.getBalance("solana:mainnet");
 				let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet");
-				let message = "SOL Balance: "+balance.toString()+" CLUBMOON Token Balance: "+tokenBalance.toString();
+				let message = "SOL Balance "+balance.toString()+" CLUBMOON Token Balance "+tokenBalance.toString();
 				socket.emit('UPDATE_MESSAGE', currentUser.id, message);
 			} else if(data.message.indexOf('/gary') > -1) {
 				let message = "Gary Death History:\n";
@@ -324,7 +324,7 @@ io.on('connection', function (socket) {
 				} else {
 					GARRY_DEATHS.forEach((death, index) => {
 						let date = new Date(death.time).toLocaleString();
-						message += `Death #${(index+1)} at ${date} | Participants: ${death.users.length} | Users: ${death.users.join(', ')}\n`;
+						message += `Death #${(index+1)} at ${date}  Participants: ${death.users.length}  Users: ${death.users.join(', ')}\n`;
 					});
 				}
 				socket.emit('UPDATE_MESSAGE', currentUser.id, message);
@@ -418,7 +418,7 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			gameData.fightStarted = _data;
 			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
-				clientLookup[garyNPCClientId].health = 500;
+				clientLookup[garyNPCClientId].health = 50;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
 		}
@@ -454,32 +454,36 @@ io.on('connection', function (socket) {
 				// Gary defeated logic
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
-				// Record Gary death
-				let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
-				GARRY_DEATHS.push({
-					time: Date.now(),
-					users: participants
-				});
-				console.log('GARRY_DEATHS', GARRY_DEATHS);
-				console.log('IS_PAYED_OUT', IS_PAYED_OUT);
-
 				if (!IS_PAYED_OUT) {
-					await text_to_voice('Gary Has been Defeated!', 'nova', .8);
+					console.log('GARRY_DEATHS', GARRY_DEATHS);
+					console.log('IS_PAYED_OUT', IS_PAYED_OUT);
+
+					// Record Gary death
+					let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
+					GARRY_DEATHS.push({
+						time: Date.now(),
+						users: participants
+					});
+
 					IS_PAYED_OUT = true;
+					await text_to_voice('Gary Has been Defeated!', 'nova', .8);
 					const numParticipants = GARY_RAID_PARTY.length;
 					await text_to_voice('numParticipants '+numParticipants, 'nova', .8);
-
+					console.log('numParticipants: ',numParticipants)
 					if (numParticipants > 0) {
 						let totalDamage = 0;
 						console.log('GARY_RAID_PARTY', GARY_RAID_PARTY);
 						GARY_RAID_PARTY.forEach(ui => {
 							let userSocketId = ALL_USERS[ui].socketId;
 							let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
+							text_to_voice('user: ' + ALL_USERS[ui].name + ' has done ' + dmg + ' damnage', 'nova', .8);
 							totalDamage += dmg;
+							console.log('totalDamage:', totalDamage);
 						});
 
 						// Distribute rewards proportionally
 						for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
+							console.log("GARY_RAID_PARTY:", GARY_RAID_PARTY[i]);
 							let userIndex = GARY_RAID_PARTY[i];
 							let user = ALL_USERS[userIndex];
 							let userDamage = USER_DAMAGE_CURRENT_RAID[user.socketId] || 0;
@@ -581,7 +585,7 @@ function gameloop() {
 			if (u.health < 0) {
 				// Reset npc health after 10s
 				setTimeout(function () {
-					u.health = 500;
+					u.health = 50;
 					if (sockets[u.socketID]) {
 						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 					}
