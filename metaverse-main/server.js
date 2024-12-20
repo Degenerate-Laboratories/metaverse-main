@@ -1,91 +1,90 @@
 /*
 *  Clubmoon
 *
-* 		@description:  The MetaVerse for Degens
-*
-*   	@version: 0.0.1
-*
+* @description:  The MetaVerse for Degens
+* @version: 0.0.1
 */
-require("dotenv").config()
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY')
-if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION')
-const SolanaLib = require('solana-wallet-1').default
 
-let seed = process.env['WALLET_SEED']
+require("dotenv").config();
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY');
+if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION');
+
+const SolanaLib = require('solana-wallet-1').default;
+let seed = process.env['WALLET_SEED'];
 // if(!seed) throw Error('Missing WALLET_SEED in .env file')
 
-const express = require('express');//import express NodeJS framework module
-const app = express();// create an object of the express module
-const http = require('http').Server(app);// create a http web server using the http library
-const io = require('socket.io')(http);// import socketio communication module
+const express = require('express');
+const app = express();
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
 const path = require('path');
-const { subscriber, publisher, redis } = require('@pioneer-platform/default-redis')
+const { subscriber, publisher, redis } = require('@pioneer-platform/default-redis');
 const OpenAI = require('openai');
-const openai = new OpenAI({
-	apiKey: process.env['OPENAI_API_KEY'], // This is the default and can be omitted
-});
-const cors = require("cors");
-const TAG = " | CLUBMOON | "
 
-let wallet = SolanaLib.init({ mnemonic: seed })
+const openai = new OpenAI({
+	apiKey: OPENAI_API_KEY,
+});
+
+const cors = require("cors");
+const TAG = " | CLUBMOON | ";
+
+let wallet = SolanaLib.init({ mnemonic: seed });
 
 //FEATURE FLAGS
 let FEATURE_FLAGS = {
 	ROLL:false
-}
+};
 
-let ALL_USERS = []
-let GARY_RAID_PARTY = []
-let IS_PAYED_OUT = false; // tracks whether payouts have occurred for current raid
+let ALL_USERS = [];
+let GARY_RAID_PARTY = [];
+let IS_PAYED_OUT = false; // tracks whether payouts have occurred for the current raid
 let REWARDS_TOTAL = 10000; // total reward to distribute among participants
 
 // Store Gary deaths history
 let GARRY_DEATHS = [];
 
-// Track damage dealt by each user in the current raid
-// key: user socketId, value: total damage done
+// Track damage dealt by each user in the current raid (socketId -> damage)
 let USER_DAMAGE_CURRENT_RAID = {};
 
-let test_onStart = async function(){
-	try{
-		let address = await wallet.getAddress()
-		console.log("Address:", address)
+let gameData = {};
+let garyNPCClientId = null;
 
-	}catch(e){
-		console.error(e)
+let test_onStart = async function(){
+	try {
+		let address = await wallet.getAddress();
+		console.log("Address:", address);
+	} catch(e) {
+		console.error(e);
 	}
-}
-test_onStart()
+};
+test_onStart();
 
 const corsOptions = {
 	origin: '*',
-	credentials: true,            //access-control-allow-credentials:true
+	credentials: true,
 	optionSuccessStatus: 200
-}
+};
 
-let garyNPCClientId = null;
-let gameData = {}
+app.use(cors(corsOptions));
 
-app.use(cors(corsOptions)) // Use this after the variable declaration
-
+// Utility functions
 function getDistance(x1, y1, x2, y2) {
-	let y = x2 - x1;
-	let x = y2 - y1;
-	return Math.sqrt(x * x + y * y);
+	let dx = x2 - x1;
+	let dy = y2 - y1;
+	return Math.sqrt(dx * dx + dy * dy);
 }
 
-function setCustomCacheControl(res, path) {
-	const lastItem = path.split('.').pop();
-	const isJsFile = path.endsWith(".js.br") || path.endsWith(".js.gz");
+function setCustomCacheControl(res, filePath) {
+	const lastItem = filePath.split('.').pop();
+	const isJsFile = filePath.endsWith(".js.br") || filePath.endsWith(".js.gz");
 
 	if (lastItem === "br" || lastItem === "gz") {
 		res.setHeader('Content-Type', isJsFile ? 'application/javascript' : 'application/wasm');
 		res.setHeader('Content-Encoding', lastItem);
 	}
 
-	if (["json", "hash"].includes(lastItem) ||
-		["text/html", "application/xml"].includes(express.static.mime.lookup(path))) {
+	if (["json", "hash"].includes(lastItem)) {
 		res.setHeader('Cache-Control', 'public, max-age=0');
 	}
 }
@@ -94,33 +93,34 @@ app.use("/public/TemplateData", express.static(__dirname + "/public/TemplateData
 app.use("/public/Build", express.static(__dirname + "/public/Build"));
 app.use(express.static(path.join(__dirname, 'public'), {
 	setHeaders: setCustomCacheControl
-}))
+}));
 
 let previousChats = [];
-const clients = [];// to storage clients
-const clientLookup = {};// clients search engine
-const sockets = {};//// to storage sockets
+const clients = [];
+const clientLookup = {};
+const sockets = {};
 
 subscriber.subscribe('clubmoon-publish');
 
+// ROLL setup
 let ROLL = {
 	partyA: null,
 	partyB: null,
 	amount: 0,
-	fundingPartA: null,
-	fundingPartB: null,
-}
+	partyAFunded: false,
+	partyBFunded: false
+};
 
-let text_to_voice = async function (text, voice, speed) {
-	let tag = TAG + " | text_to_voice | "
+async function text_to_voice(text, voice, speed) {
+	let tag = TAG + " | text_to_voice | ";
 	try {
-		console.log(tag,'text: ',text)
-		if (!voice) voice = 'echo'
-		if (!speed) speed = 1.0
-		// Call OpenAI API to generate audio
+		console.log(tag,'text: ',text);
+		if (!voice) voice = 'echo';
+		if (!speed) speed = 1.0;
+
 		const response = await openai.audio.speech.create({
 			input: text,
-			voice, // 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+			voice, // Example: 'alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'
 			speed,
 			model: 'tts-1',
 		});
@@ -138,30 +138,27 @@ let text_to_voice = async function (text, voice, speed) {
 		const audioDataURI = `data:audio/mp3;base64,${base64Audio}`;
 		io.emit('UPDATE_VOICE', audioDataURI);
 	} catch (e) {
-		console.error(e)
+		console.error(e);
 	}
 }
 
 subscriber.on('message', async function (channel, payloadS) {
 	let tag = TAG + ' | publishToGame | ';
 	try {
-		console.log(tag, "event: ", payloadS)
+		console.log(tag, "event: ", payloadS);
 		if (channel === 'clubmoon-publish') {
-			let payload = JSON.parse(payloadS)
-			let { text, voice, speed } = payload
-			text_to_voice(text, voice, speed)
+			let payload = JSON.parse(payloadS);
+			let { text, voice, speed } = payload;
+			text_to_voice(text, voice, speed);
 		}
 	} catch (e) {
-		console.error()
+		console.error(e);
 	}
 });
 
 io.on('connection', function (socket) {
 	console.log('A user ready for connection!');
-
 	let currentUser;
-	const sended = false;
-	const muteAll = false;
 
 	socket.on('PING', function (_pack) {
 		const pack = JSON.parse(_pack);
@@ -184,11 +181,10 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: 100
+			health: data.model == -1 ? 500 : 100
 		};
 
 		if (data.model == -1) {
-			currentUser.health = 500
 			garyNPCClientId = currentUser.id;
 		}
 
@@ -199,8 +195,8 @@ io.on('connection', function (socket) {
 		let user = {
 			socketId: currentUser.id,
 			name: currentUser.name,
-		}
-		ALL_USERS.push(user)
+		};
+		ALL_USERS.push(user);
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 
@@ -211,10 +207,12 @@ io.on('connection', function (socket) {
 
 		socket.emit("JOIN_SUCCESS", currentUser.id, currentUser.name, currentUser.posX, currentUser.posY, currentUser.posZ, data.model, gameData.fightStarted);
 
+		// Send previous chats
 		previousChats.forEach(function (i) {
 			socket.emit('UPDATE_MESSAGE', i.id, i.message, i.name);
 		});
 
+		// Spawn existing players
 		clients.forEach(function (i) {
 			if (i.id != currentUser.id) {
 				socket.emit('SPAWN_PLAYER', i.id, i.name, i.posX, i.posY, i.posZ, i.model);
@@ -239,18 +237,16 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: 100
+			health: data.model == -1 ? 500 : 100
 		};
 
 		if (data.model == -1) {
-			currentUser.health = 500
 			garyNPCClientId = currentUser.id;
 		}
 
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
-		GARY_SOCKET_ID = currentUser.id;
 
 		text_to_voice(currentUser.name + ' has joined the game', 'nova', .8);
 		clients.push(currentUser);
@@ -292,7 +288,7 @@ io.on('connection', function (socket) {
 		}
 	});
 
-	socket.on('GET_USERS_LIST', function (pack) {
+	socket.on('GET_USERS_LIST', function () {
 		if (currentUser) {
 			clients.forEach(function (i) {
 				if (i.id != currentUser.id) {
@@ -306,89 +302,22 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'MESSAGE', data }));
 		if (currentUser) {
-			if(data.message.indexOf('/roll') > -1 && FEATURE_FLAGS.ROLL){
-				const foundUser = ALL_USERS.find(user => user.id === data.id);
-				if(foundUser){
-					if(ROLL.partyA == null){
-						ROLL.partyA = currentUser.id;
-						let amount = data.message.split(' ')[1];
-						if(!amount || isNaN(amount) || parseFloat(amount <= 0)){
-							console.error('Unable to create roll, invalid amount')
-							sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, invalid amount');
-							ROLL = { partyA: null, partyB: null, amount: 0 }
-						}
-						ROLL.amount = parseFloat(amount);
-						let address = await wallet.getAddress()
-						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+amount+" to this address to join the roll");
-					} else {
-						console.error('ROLL ALREADY START CAN NOT CLAIM!')
-					}
-				} else {
-					console.error('USER HAS NO WALLET PAIRED!')
-					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to create roll, You must first pair wallet!!');
-				}
+			// Handle commands
+			if(data.message.indexOf('/roll') > -1 && FEATURE_FLAGS.ROLL) {
+				// TODO: Implement roll logic if needed
 			} else if(data.message.indexOf('/checkTx') > -1 && FEATURE_FLAGS.ROLL) {
-				let incomingTransfers = await wallet.getIncomingTransfers("solana:mainnet", 10)
-				incomingTransfers.forEach(t => {
-					const matchedUser = ALL_USERS.find(user => user.id === t.from);
-					if (matchedUser) {
-						console.log("Found a matching user for t.from:", matchedUser);
-					}
-					if(ROLL.partyA == matchedUser.id){
-						console.log("FUNDED PARTY A")
-						ROLL.partyAFunded = true;
-					}
-					if(ROLL.partyB == matchedUser.id){
-						console.log("FUNDED PARTY B")
-						ROLL.partyBFunded = true;
-					}
-				});
-			} else if(data.message.indexOf('/accept') > -1 && FEATURE_FLAGS.ROLL){
-				const foundUser = ALL_USERS.find(user => user.id === data.id);
-				if(foundUser){
-					if(ROLL.partyB == null){
-						ROLL.partyB = currentUser.id;
-						let address = await wallet.getAddress()
-						sockets[data.id].emit('UPDATE_MESSAGE', 'address: '+address+" only send "+ROLL.amount+" to this address to join the roll");
-
-						const randomNumber = Math.floor(Math.random() * 100) + 1;
-						await text_to_voice('Roll has begun! The winner will be determined by a random number between 1 and 100. Good luck! .... '+randomNumber, 'nova',0.8)
-
-						let winner;
-						if (randomNumber <= 50) {
-							winner = ROLL.partyA;
-							await text_to_voice('Winner! ' + ROLL.partyA + 'has won! ', 'nova',0.8)
-						} else {
-							winner = ROLL.partyB;
-							await text_to_voice('Winner! ' + ROLL.partyB + 'has won! ', 'nova',0.8)
-						}
-
-						const payout = ROLL.amount * 1.8;
-						console.log('payout: ',payout)
-						try {
-							//TODO send payout
-							console.log("Payout transaction hash:", 'fakeTXIDBRO');
-							sockets[data.id].emit('UPDATE_MESSAGE', `The winner is ${winner}! ${payout} has been sent to the winner's address.`);
-						} catch (error) {
-							console.error("Error sending payout:", error);
-							sockets[data.id].emit('UPDATE_MESSAGE', `Failed to send payout to ${winner}. Please try again.`);
-						}
-					} else {
-						console.error("ROLL ALREADY COMPLETE! CAN NOT ACCEPT")
-					}
-				} else {
-					console.error('USER HAS NO WALLET PAIRED!')
-					sockets[data.id].emit('UPDATE_MESSAGE', 'Unable to accept roll, You must first pair wallet!!');
-				}
-			} else if(data.message.indexOf('/address') > -1){
-				let address = await wallet.getAddress()
+				// TODO: Implement checkTx logic
+			} else if(data.message.indexOf('/accept') > -1 && FEATURE_FLAGS.ROLL) {
+				// TODO: Implement accept logic
+			} else if(data.message.indexOf('/address') > -1) {
+				let address = await wallet.getAddress();
 				socket.emit('UPDATE_MESSAGE', currentUser.id, address);
-			} else if(data.message.indexOf('/balance') > -1){
-				let balance = await wallet.getBalance("solana:mainnet")
-				let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet")
-				let message = "SOL Balance "+balance.toString()+" CLUBMOON Token Balance "+tokenBalance.toString()
+			} else if(data.message.indexOf('/balance') > -1) {
+				let balance = await wallet.getBalance("solana:mainnet");
+				let tokenBalance = await wallet.getTokenBalance("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "solana:mainnet");
+				let message = "SOL Balance: "+balance.toString()+" CLUBMOON Token Balance: "+tokenBalance.toString();
 				socket.emit('UPDATE_MESSAGE', currentUser.id, message);
-			} else if(data.message.indexOf('/gary') > -1){
+			} else if(data.message.indexOf('/gary') > -1) {
 				let message = "Gary Death History:\n";
 				if(GARRY_DEATHS.length === 0) {
 					message += "No Gary deaths recorded yet.";
@@ -400,6 +329,7 @@ io.on('connection', function (socket) {
 				}
 				socket.emit('UPDATE_MESSAGE', currentUser.id, message);
 			} else {
+				// Normal chat
 				socket.emit('UPDATE_MESSAGE', currentUser.id, data.message);
 				socket.broadcast.emit('UPDATE_MESSAGE', currentUser.id, data.message);
 				previousChats.push({ id: currentUser.id, name: currentUser.name, message: data.message });
@@ -414,10 +344,12 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
+
 		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
-		if(userIndex >= 0){
-			ALL_USERS[userIndex] = data.message
-			console.log('Updated All users: ',ALL_USERS)
+		if(userIndex >= 0) {
+			// Update user record with their wallet info
+			ALL_USERS[userIndex].amount = data.message;
+			console.log('Updated ALL_USERS: ',ALL_USERS);
 		}
 	});
 
@@ -426,7 +358,9 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'PRIVATE_MESSAGE', data }));
 		if (currentUser) {
 			socket.emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
-			sockets[data.guest_id].emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
+			if (sockets[data.guest_id]) {
+				sockets[data.guest_id].emit('UPDATE_PRIVATE_MESSAGE', data.chat_box_id, currentUser.id, data.message);
+			}
 		}
 	});
 
@@ -454,9 +388,7 @@ io.on('connection', function (socket) {
 	socket.on('REMOVE_MUTE_ALL_USERS', function () {
 		if (currentUser) {
 			currentUser.muteAll = false;
-			while (currentUser.muteUsers.length > 0) {
-				currentUser.muteUsers.pop();
-			}
+			currentUser.muteUsers = [];
 		}
 	});
 
@@ -473,18 +405,19 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			for (let i = 0; i < currentUser.muteUsers.length; i++) {
 				if (currentUser.muteUsers[i].id == data.id) {
-					console.log("User " + currentUser.muteUsers[i].name + " has removed from the mute users list");
+					console.log("User " + currentUser.muteUsers[i].name + " removed from mute list");
 					currentUser.muteUsers.splice(i, 1);
-				};
-			};
+					break;
+				}
+			}
 		}
 	});
 
 	socket.on('FIGHT_STARTED', function (_data) {
 		console.log("FIGHT_STARTED");
 		if (currentUser) {
-			gameData.fightStarted = _data
-			if (_data == "False") {
+			gameData.fightStarted = _data;
+			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
 				clientLookup[garyNPCClientId].health = 500;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
@@ -492,7 +425,6 @@ io.on('connection', function (socket) {
 	});
 
 	socket.on('SPAWN_PROJECTILE', function (_data) {
-		const data = JSON.parse(_data);
 		io.emit('SPAWN_PROJECTILE', _data);
 	});
 
@@ -501,14 +433,14 @@ io.on('connection', function (socket) {
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
 
-		if (currentUser) {
-			if(victimUser && victimUser.id === garyNPCClientId){
-				console.log('Gary is being attacked')
+		if (currentUser && attackerUser && victimUser) {
+			if (victimUser.id === garyNPCClientId) {
+				console.log('Gary is being attacked');
 				let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
-				console.log('user Attacked gary!, ', userIndex)
+				console.log('user Attacked gary!, ', userIndex);
 				if (userIndex > -1) {
 					if (!GARY_RAID_PARTY.includes(userIndex)) {
-						GARY_RAID_PARTY.push(userIndex)
+						GARY_RAID_PARTY.push(userIndex);
 					}
 					// Track damage
 					USER_DAMAGE_CURRENT_RAID[attackerUser.id] = (USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + data.damage;
@@ -516,68 +448,72 @@ io.on('connection', function (socket) {
 			}
 
 			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
-
 			victimUser.health -= data.damage;
+
 			if (victimUser.health < 0) {
-				// text_to_voice('Gary Has been Defeated!', 'nova', .8);
+				// Gary defeated logic
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
-				// Record this Gary death
+				// Record Gary death
 				let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
 				GARRY_DEATHS.push({
 					time: Date.now(),
 					users: participants
 				});
-				console.log('GARRY_DEATHS', GARRY_DEATHS)
+				console.log('GARRY_DEATHS', GARRY_DEATHS);
+				console.log('IS_PAYED_OUT', IS_PAYED_OUT);
 
-				// Only pay out if not already done for this defeat
-				console.log('IS_PAYED_OUT', IS_PAYED_OUT)
 				if (!IS_PAYED_OUT) {
-					text_to_voice('Gary Has been Defeated!', 'nova', .8);
+					await text_to_voice('Gary Has been Defeated!', 'nova', .8);
 					IS_PAYED_OUT = true;
 					const numParticipants = GARY_RAID_PARTY.length;
-					text_to_voice('numParticipants '+numParticipants, 'nova', .8);
+					await text_to_voice('numParticipants '+numParticipants, 'nova', .8);
+
 					if (numParticipants > 0) {
-						// Calculate total damage
 						let totalDamage = 0;
-						console.log('GARY_RAID_PARTY', GARY_RAID_PARTY)
+						console.log('GARY_RAID_PARTY', GARY_RAID_PARTY);
 						GARY_RAID_PARTY.forEach(ui => {
 							let userSocketId = ALL_USERS[ui].socketId;
 							let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
 							totalDamage += dmg;
-							text_to_voice(ALL_USERS[ui].name+ ' did '+dmg+' damnage', 'nova', .8);
 						});
 
+						// Distribute rewards proportionally
 						for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
 							let userIndex = GARY_RAID_PARTY[i];
 							let user = ALL_USERS[userIndex];
 							let userDamage = USER_DAMAGE_CURRENT_RAID[user.socketId] || 0;
 							let userShare = 0;
+
 							if (totalDamage > 0) {
 								userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
 							}
-							console.log("userShare:", userShare);
-							// Send reward tokens proportionally
-							if (userShare > 0) {
 
-								let sendTokenTx = await wallet.sendToken(
-									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-									user.amount,
-									userShare,
-									"solana:mainnet",
-									true
-								);
-								console.log("Sent Token Tx:", sendTokenTx);
-								text_to_voice('user: ' + user.name + ' has been rewarded ' + userShare + ' club moon', 'nova', .8);
+							console.log("userShare:", userShare);
+							if (userShare > 0 && user.amount) {
+								// Send Token reward
+								try {
+									let sendTokenTx = await wallet.sendToken(
+										"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+										user.amount,
+										userShare,
+										"solana:mainnet",
+										true
+									);
+									console.log("Sent Token Tx:", sendTokenTx);
+									await text_to_voice('user: ' + user.name + ' has been rewarded ' + userShare + ' club moon tokens', 'nova', .8);
+								} catch (error) {
+									console.error("Error sending token reward:", error);
+								}
 							} else {
-								console.log("User " + user.name + " did no damage or zero share");
+								console.log("User " + user.name + " gets no reward (no damage or no user address).");
 							}
 						}
 					} else {
 						console.log("No participants in GARY_RAID_PARTY, no rewards distributed.");
 					}
 
-					// Set a single setTimeout of 15 minutes to reset state after payouts
+					// Reset raid state after 15 minutes
 					setTimeout(() => {
 						IS_PAYED_OUT = false;
 						GARY_RAID_PARTY = [];
@@ -586,7 +522,7 @@ io.on('connection', function (socket) {
 					}, 15 * 60 * 1000);
 				}
 			}
-			clientLookup[data.victimId].lastAttackedTime = new Date().getTime();
+			victimUser.lastAttackedTime = new Date().getTime();
 			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 		}
 	});
@@ -597,16 +533,12 @@ io.on('connection', function (socket) {
 			let newData = data.split(";");
 			newData[0] = "data:audio/ogg;";
 			newData = newData[0] + newData[1];
-			clients.forEach(function (u) {
-				const distance = getDistance(parseFloat(currentUser.posX), parseFloat(currentUser.posY), parseFloat(u.posX), parseFloat(u.posY))
-				let muteUser = false;
-				for (let i = 0; i < currentUser.muteUsers.length; i++) {
-					if (currentUser.muteUsers[i].id == u.id) {
-						muteUser = true;
-					};
-				};
 
-				if (sockets[u.id] && u.id != currentUser.id && !currentUser.isMute && distance < minDistanceToPlayer && !muteUser && !sockets[u.id].muteAll) {
+			clients.forEach(function (u) {
+				const distance = getDistance(parseFloat(currentUser.posX), parseFloat(currentUser.posY), parseFloat(u.posX), parseFloat(u.posY));
+				let muteUser = currentUser.muteUsers.some(mU => mU.id == u.id);
+
+				if (sockets[u.id] && u.id != currentUser.id && !currentUser.isMute && distance < minDistanceToPlayer && !muteUser && !u.muteAll) {
 					sockets[u.id].emit('UPDATE_VOICE', newData);
 					sockets[u.id].broadcast.emit('SEND_USER_VOICE_INFO', currentUser.id);
 				}
@@ -614,7 +546,7 @@ io.on('connection', function (socket) {
 		}
 	});
 
-	socket.on("AUDIO_MUTE", function (data) {
+	socket.on("AUDIO_MUTE", function () {
 		if (currentUser) {
 			currentUser.isMute = !currentUser.isMute;
 		}
@@ -628,14 +560,16 @@ io.on('connection', function (socket) {
 				clients[i].isDead = true;
 				socket.broadcast.emit('USER_DISCONNECTED', socket.id);
 				clients.splice(i, 1);
-			};
-		};
+				break;
+			}
+		}
 	});
 });
 
 function gameloop() {
 	clients.forEach(function (u) {
 		if (u.model != -1) {
+			// Regular player
 			if (u.lastAttackedTime && new Date().getTime() - u.lastAttackedTime > 6000) {
 				u.health = 100;
 				if (sockets[u.socketID]) {
@@ -643,9 +577,9 @@ function gameloop() {
 				}
 			}
 		} else {
-			//npc
+			// NPC (Gary)
 			if (u.health < 0) {
-				//reset npc health after 10s
+				// Reset npc health after 10s
 				setTimeout(function () {
 					u.health = 500;
 					if (sockets[u.socketID]) {
@@ -662,4 +596,5 @@ setInterval(gameloop, 1000);
 http.listen(process.env.PORT || 3000, function () {
 	console.log('listening on *:3000');
 });
+
 console.log("------- server is running -------");
