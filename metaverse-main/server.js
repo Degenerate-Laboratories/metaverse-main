@@ -519,7 +519,7 @@ io.on('connection', function (socket) {
 
 			victimUser.health -= data.damage;
 			if (victimUser.health < 0) {
-				text_to_voice('Gary Has been Defeated!', 'nova', .8);
+				// text_to_voice('Gary Has been Defeated!', 'nova', .8);
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 
 				// Record this Gary death
@@ -528,19 +528,24 @@ io.on('connection', function (socket) {
 					time: Date.now(),
 					users: participants
 				});
+				console.log('GARRY_DEATHS', GARRY_DEATHS)
 
 				// Only pay out if not already done for this defeat
+				console.log('IS_PAYED_OUT', IS_PAYED_OUT)
 				if (!IS_PAYED_OUT) {
+					text_to_voice('Gary Has been Defeated!', 'nova', .8);
 					IS_PAYED_OUT = true;
 					const numParticipants = GARY_RAID_PARTY.length;
-
+					text_to_voice('numParticipants '+numParticipants, 'nova', .8);
 					if (numParticipants > 0) {
 						// Calculate total damage
 						let totalDamage = 0;
+						console.log('GARY_RAID_PARTY', GARY_RAID_PARTY)
 						GARY_RAID_PARTY.forEach(ui => {
 							let userSocketId = ALL_USERS[ui].socketId;
 							let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
 							totalDamage += dmg;
+							text_to_voice(ALL_USERS[ui].name+ ' did '+dmg+' damnage', 'nova', .8);
 						});
 
 						for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
@@ -551,9 +556,10 @@ io.on('connection', function (socket) {
 							if (totalDamage > 0) {
 								userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
 							}
-
+							console.log("userShare:", userShare);
 							// Send reward tokens proportionally
 							if (userShare > 0) {
+
 								let sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
 									user.amount,
