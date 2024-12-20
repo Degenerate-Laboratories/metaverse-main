@@ -432,10 +432,24 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
+		console.log('attackerUser: ', attackerUser);
+		console.log('victimUser: ', victimUser);
+		console.log('data.damage: ', data.damage);
 
 		if (currentUser && attackerUser && victimUser) {
+
+			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
+			victimUser.health -= data.damage;
+
+			if (victimUser.health < 0) {
+				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
+			}
+			victimUser.lastAttackedTime = new Date().getTime();
+			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
+
+
 			if (victimUser.id === garyNPCClientId) {
-				console.log('Gary is being attacked');
+				console.log('Gary is BEING ATTACKED!');
 				let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
 				console.log('user Attacked gary!, ', userIndex);
 				if (userIndex > -1) {
@@ -445,89 +459,82 @@ io.on('connection', function (socket) {
 					// Track damage
 					USER_DAMAGE_CURRENT_RAID[attackerUser.id] = (USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + data.damage;
 				}
-			}
 
-			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
-			victimUser.health -= data.damage;
+				if (victimUser.health < 0) {
+					console.log('Gary is DEAD!');
+					if (!IS_PAYED_OUT) {
+						console.log('GARRY_DEATHS', GARRY_DEATHS);
+						console.log('IS_PAYED_OUT', IS_PAYED_OUT);
 
-			if (victimUser.health < 0) {
-				// Gary defeated logic
-				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
-
-				if (!IS_PAYED_OUT) {
-					console.log('GARRY_DEATHS', GARRY_DEATHS);
-					console.log('IS_PAYED_OUT', IS_PAYED_OUT);
-
-					// Record Gary death
-					let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
-					GARRY_DEATHS.push({
-						time: Date.now(),
-						users: participants
-					});
-
-					IS_PAYED_OUT = true;
-					await text_to_voice('Gary Has been Defeated!', 'nova', .8);
-					const numParticipants = GARY_RAID_PARTY.length;
-					await text_to_voice('numParticipants '+numParticipants, 'nova', .8);
-					console.log('numParticipants: ',numParticipants)
-					if (numParticipants > 0) {
-						let totalDamage = 0;
-						console.log('GARY_RAID_PARTY', GARY_RAID_PARTY);
-						GARY_RAID_PARTY.forEach(ui => {
-							let userSocketId = ALL_USERS[ui].socketId;
-							let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
-							text_to_voice('user: ' + ALL_USERS[ui].name + ' has done ' + dmg + ' damnage', 'nova', .8);
-							totalDamage += dmg;
-							console.log('totalDamage:', totalDamage);
+						// Record Gary death
+						let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
+						GARRY_DEATHS.push({
+							time: Date.now(),
+							users: participants
 						});
 
-						// Distribute rewards proportionally
-						for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
-							console.log("GARY_RAID_PARTY:", GARY_RAID_PARTY[i]);
-							let userIndex = GARY_RAID_PARTY[i];
-							let user = ALL_USERS[userIndex];
-							let userDamage = USER_DAMAGE_CURRENT_RAID[user.socketId] || 0;
-							let userShare = 0;
+						IS_PAYED_OUT = true;
+						await text_to_voice('Gary Has been Defeated!', 'nova', .8);
+						const numParticipants = GARY_RAID_PARTY.length;
+						await text_to_voice('numParticipants '+numParticipants, 'nova', .8);
+						console.log('numParticipants: ',numParticipants)
+						if (numParticipants > 0) {
+							let totalDamage = 0;
+							console.log('GARY_RAID_PARTY', GARY_RAID_PARTY);
+							GARY_RAID_PARTY.forEach(ui => {
+								let userSocketId = ALL_USERS[ui].socketId;
+								let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
+								text_to_voice('user: ' + ALL_USERS[ui].name + ' has done ' + dmg + ' damnage', 'nova', .8);
+								totalDamage += dmg;
+								console.log('totalDamage:', totalDamage);
+							});
 
-							if (totalDamage > 0) {
-								userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
-							}
+							// Distribute rewards proportionally
+							for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
+								console.log("GARY_RAID_PARTY:", GARY_RAID_PARTY[i]);
+								let userIndex = GARY_RAID_PARTY[i];
+								let user = ALL_USERS[userIndex];
+								let userDamage = USER_DAMAGE_CURRENT_RAID[user.socketId] || 0;
+								let userShare = 0;
 
-							console.log("userShare:", userShare);
-							if (userShare > 0 && user.amount) {
-								// Send Token reward
-								try {
-									let sendTokenTx = await wallet.sendToken(
-										"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-										user.amount,
-										userShare,
-										"solana:mainnet",
-										true
-									);
-									console.log("Sent Token Tx:", sendTokenTx);
-									await text_to_voice('user: ' + user.name + ' has been rewarded ' + userShare + ' club moon tokens', 'nova', .8);
-								} catch (error) {
-									console.error("Error sending token reward:", error);
+								if (totalDamage > 0) {
+									userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
 								}
-							} else {
-								console.log("User " + user.name + " gets no reward (no damage or no user address).");
-							}
-						}
-					} else {
-						console.log("No participants in GARY_RAID_PARTY, no rewards distributed.");
-					}
 
-					// Reset raid state after 15 minutes
-					setTimeout(() => {
-						IS_PAYED_OUT = false;
-						GARY_RAID_PARTY = [];
-						USER_DAMAGE_CURRENT_RAID = {};
-						console.log("Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes.");
-					}, 15 * 60 * 1000);
+								console.log("userShare:", userShare);
+								if (userShare > 0 && user.amount) {
+									// Send Token reward
+									try {
+										let sendTokenTx = await wallet.sendToken(
+											"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+											user.amount,
+											userShare,
+											"solana:mainnet",
+											true
+										);
+										console.log("Sent Token Tx:", sendTokenTx);
+										await text_to_voice('user: ' + user.name + ' has been rewarded ' + userShare + ' club moon tokens', 'nova', .8);
+									} catch (error) {
+										console.error("Error sending token reward:", error);
+									}
+								} else {
+									console.log("User " + user.name + " gets no reward (no damage or no user address).");
+								}
+							}
+						} else {
+							console.log("No participants in GARY_RAID_PARTY, no rewards distributed.");
+						}
+
+						// Reset raid state after 15 minutes
+						setTimeout(() => {
+							IS_PAYED_OUT = false;
+							GARY_RAID_PARTY = [];
+							USER_DAMAGE_CURRENT_RAID = {};
+							console.log("Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes.");
+						}, 15 * 60 * 1000);
+					}
 				}
 			}
-			victimUser.lastAttackedTime = new Date().getTime();
-			io.emit('UPDATE_HEALTH', victimUser.id, victimUser.health);
 		}
 	});
 
