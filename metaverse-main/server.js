@@ -419,7 +419,7 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			gameData.fightStarted = _data;
 			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
-				clientLookup[garyNPCClientId].health = 50
+				clientLookup[garyNPCClientId].health = 500
 					;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
@@ -594,14 +594,14 @@ function gameloop() {
 		} else {
 			// NPC (Gary)
 			if (u.health < 0) {
-				// Reset npc health after 10s
-				// setTimeout(function () {
-				// 	u.health = 50;
-				// 	if (sockets[u.socketID]) {
-				// 		sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
-				// 	}
-				// }, 10000);
-				console.log("Gary is dead!!!");
+				//Reset npc health after 15s
+				setTimeout(function () {
+					u.health = 500;
+					if (sockets[u.socketID]) {
+						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+					}
+				}, 15000);
+				//console.log("Gary is dead!!!");
 			}
 		}
 	});
