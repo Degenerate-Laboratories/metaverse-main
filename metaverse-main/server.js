@@ -4,7 +4,6 @@
 * @description:  The MetaVerse for Degens
 * @version: 0.0.1
 */
-
 require("dotenv").config();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY');
@@ -54,6 +53,8 @@ let test_onStart = async function(){
 	try {
 		let address = await wallet.getAddress();
 		console.log("Address:", address);
+		//let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "CD9R61PMZFafFQ9QsPZATm74hFyEvYaNtEtwGvvHmRYH", 1, "solana:mainnet", true)
+		//console.log("sendTokenTx:", sendTokenTx);
 	} catch(e) {
 		console.error(e);
 	}
@@ -433,16 +434,18 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
-		console.log('attackerUser: ', attackerUser);
-		console.log('victimUser: ', victimUser);
-		console.log('data.damage: ', data.damage);
-
+		//console.log('attackerUser: ', attackerUser);
+		//console.log('victimUser: ', victimUser);
+		//console.log('data.damage: ', data.damage);
+		console.log("ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage + " damage");
+		console.log("data.damage-typeof: ", typeof(victimUser.health));
 		if (currentUser && attackerUser && victimUser) {
 
 			publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DAMNAGE' }));
-			victimUser.health -= data.damage;
-
-			if (victimUser.health < 0) {
+			victimUser.health -= Number(data.damage);
+			console.log("victimUser.health: ", victimUser.health);
+			if (victimUser.health <= 0) {
+				console.log("DEAD EVENT || " + victimUser.name + " has died");
 				publisher.publish('clubmoon-events', JSON.stringify({ channel: 'HEALTH', data, attackerUser, victimUser, event: 'DEAD' }));
 			}
 			victimUser.lastAttackedTime = new Date().getTime();
@@ -450,15 +453,15 @@ io.on('connection', function (socket) {
 
 
 			if (victimUser.id === garyNPCClientId) {
-				console.log('Gary is BEING ATTACKED!');
+				//console.log('Gary is BEING ATTACKED!');
 				let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
-				console.log('user Attacked gary!, ', userIndex);
+				//console.log('user Attacked gary!, ', userIndex);
 				if (userIndex > -1) {
 					if (!GARY_RAID_PARTY.includes(userIndex)) {
 						GARY_RAID_PARTY.push(userIndex);
 					}
 					// Track damage
-					USER_DAMAGE_CURRENT_RAID[attackerUser.id] = (USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + data.damage;
+					USER_DAMAGE_CURRENT_RAID[attackerUser.id] = (USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage);
 				}
 
 				if (victimUser.health < 0) {
@@ -484,8 +487,8 @@ io.on('connection', function (socket) {
 							console.log('GARY_RAID_PARTY', GARY_RAID_PARTY);
 							GARY_RAID_PARTY.forEach(ui => {
 								let userSocketId = ALL_USERS[ui].socketId;
-								let dmg = USER_DAMAGE_CURRENT_RAID[userSocketId] || 0;
-								text_to_voice('user: ' + ALL_USERS[ui].name + ' has done ' + dmg + ' damnage', 'nova', .8);
+								let dmg = Number(USER_DAMAGE_CURRENT_RAID[userSocketId] || 0);
+								text_to_voice('user: ' + ALL_USERS[ui].name + ' has done ' + dmg + ' damage', 'nova', .8);
 								totalDamage += dmg;
 								console.log('totalDamage:', totalDamage);
 							});
@@ -495,7 +498,7 @@ io.on('connection', function (socket) {
 								console.log("GARY_RAID_PARTY:", GARY_RAID_PARTY[i]);
 								let userIndex = GARY_RAID_PARTY[i];
 								let user = ALL_USERS[userIndex];
-								let userDamage = USER_DAMAGE_CURRENT_RAID[user.socketId] || 0;
+								let userDamage = Number(USER_DAMAGE_CURRENT_RAID[user.socketId] || 0);
 								let userShare = 0;
 
 								if (totalDamage > 0) {
@@ -592,12 +595,13 @@ function gameloop() {
 			// NPC (Gary)
 			if (u.health < 0) {
 				// Reset npc health after 10s
-				setTimeout(function () {
-					u.health = 50;
-					if (sockets[u.socketID]) {
-						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
-					}
-				}, 10000);
+				// setTimeout(function () {
+				// 	u.health = 50;
+				// 	if (sockets[u.socketID]) {
+				// 		sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+				// 	}
+				// }, 10000);
+				console.log("Gary is dead!!!");
 			}
 		}
 	});
