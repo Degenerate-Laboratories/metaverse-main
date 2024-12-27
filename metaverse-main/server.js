@@ -418,7 +418,8 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			gameData.fightStarted = _data;
 			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
-				clientLookup[garyNPCClientId].health = 500;
+				clientLookup[garyNPCClientId].health = 50
+					;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
 		}
@@ -592,7 +593,7 @@ function gameloop() {
 			if (u.health < 0) {
 				// Reset npc health after 10s
 				setTimeout(function () {
-					u.health = 500;
+					u.health = 50;
 					if (sockets[u.socketID]) {
 						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 					}
