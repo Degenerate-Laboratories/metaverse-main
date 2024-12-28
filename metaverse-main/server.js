@@ -348,9 +348,22 @@ io.on('connection', function (socket) {
 
 		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
 		if(userIndex >= 0) {
-			// Update user record with their wallet info
-			ALL_USERS[userIndex].amount = data.message;
-			console.log('Updated ALL_USERS: ',ALL_USERS);
+			// Update user record with their wallet address
+			ALL_USERS[userIndex].walletAddress = data.message;
+			console.log('Updated ALL_USERS: ', ALL_USERS);
+		}
+	});
+
+	socket.on('NFTMESSAGE', function (_data) {
+		const data = JSON.parse(_data);
+		publisher.publish('clubmoon-nft-connect', JSON.stringify({ channel: 'NFT_MESSAGE', data }));
+		console.log("Nft drugs Held: " + data.message);
+
+		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
+		if(userIndex >= 0) {
+			// Update user record with their NFT holdings
+			ALL_USERS[userIndex].nftDrugs = data.message;
+			console.log('Updated ALL_USERS: ', ALL_USERS);
 		}
 	});
 
@@ -592,17 +605,17 @@ function gameloop() {
 				}
 			}
 		} else {
-			// NPC (Gary)
-			if (u.health < 0) {
-				//Reset npc health after 15s
-				setTimeout(function () {
-					u.health = 500;
-					if (sockets[u.socketID]) {
-						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
-					}
-				}, 15000);
-				//console.log("Gary is dead!!!");
-			}
+			// // NPC (Gary)
+			// if (u.health < 0) {
+			// 	//Reset npc health after 15s
+			// 	setTimeout(function () {
+			// 		u.health = 500;
+			// 		if (sockets[u.socketID]) {
+			// 			sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+			// 		}
+			// 	}, 15000);
+			// 	//console.log("Gary is dead!!!");
+			// }
 		}
 	});
 }
