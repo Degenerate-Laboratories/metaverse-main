@@ -415,12 +415,11 @@ io.on('connection', function (socket) {
 	});
 
 	socket.on('FIGHT_STARTED', function (_data) {
-		console.log("FIGHT_STARTED");
+		console.log("FIGHT_STARTED: " + _data);
 		if (currentUser) {
 			gameData.fightStarted = _data;
 			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
-				clientLookup[garyNPCClientId].health = 50
-					;
+				clientLookup[garyNPCClientId].health = 50;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
 		}
@@ -484,7 +483,7 @@ io.on('connection', function (socket) {
 			// 4) If Gary's health falls below 0 => Gary is dead
 			if (victimUser.health < 0) {
 			  console.log("Gary is DEAD!");
-	  
+			  socket.broadcast.emit('FIGHT_STARTED', "false");
 			  // Make sure we haven't paid out for this kill yet
 			  if (!IS_PAYED_OUT) {
 				console.log("GARRY_DEATHS", GARRY_DEATHS);
@@ -563,31 +562,46 @@ io.on('connection', function (socket) {
 	  
 					// Only send if user has a valid address & non-zero share
 					if (userShare > 0 && user.amount) {  // Using 'amount' as wallet address
-					  try {
-						console.log("Sending token to user: ", user.name, " with address: ", user.amount, " and share: ", userShare);
-						let sendTokenTx = await wallet.sendToken(
-						  "5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-						  user.amount, // 'user.amount' holds the wallet address
-						  userShare,
-						  "solana:mainnet",
-						  true
-						);
-						console.log("Sent Token Tx:", sendTokenTx);
-						results.push({
-						  success: true,
-						  userName: user.name,
-						  userDamage,
-						  userShare,
-						});
-					  } catch (error) {
-						console.error("Error sending token reward:", error);
-						results.push({
-						  success: false,
-						  userName: user.name,
-						  userDamage,
-						  userShare,
-						  error,
-						});
+					  let attempts = 0;
+					  let maxAttempts = 2; // Initial try + one retry
+					  let success = false;
+	  
+					  while (attempts < maxAttempts && !success) {
+						try {
+						  attempts++;
+						  console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.amount} and share: ${userShare}`);
+						  let sendTokenTx = await wallet.sendToken(
+							"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+							user.amount, // 'user.amount' holds the wallet address
+							userShare,
+							"solana:mainnet",
+							true
+						  );
+						  console.log("Sent Token Tx:", sendTokenTx);
+						  results.push({
+							success: true,
+							userName: user.name,
+							userDamage,
+							userShare,
+							sendTokenTx, // Include transaction hash in results
+						  });
+						  success = true; // Mark as successful to exit loop
+						} catch (error) {
+						  console.error(`Attempt ${attempts}: Error sending token reward to ${user.name}:`, error);
+						  if (attempts >= maxAttempts) {
+							 // If maximum attempts reached, log the failure
+							 results.push({
+								success: false,
+								userName: user.name,
+								userDamage,
+								userShare,
+								error,
+							  });
+						  } else {
+							 // Wait a bit before retrying
+							 await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+						  }
+						}
 					  }
 					} else {
 					  console.log(`User ${user.name} gets no reward (no damage or no user address).`);
