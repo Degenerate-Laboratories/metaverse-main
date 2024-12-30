@@ -238,7 +238,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 50 : 100
+			health: data.model == -1 ? 500 : 100
 		};
 
 		if (data.model == -1) {
@@ -349,8 +349,8 @@ io.on('connection', function (socket) {
 		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
 		if(userIndex >= 0) {
 			// Update user record with their wallet info
-			ALL_USERS[userIndex].amount = data.message;
-			console.log('Updated ALL_USERS: ',ALL_USERS);
+			ALL_USERS[userIndex].amount = data.message; // 'amount' is wallet address
+			console.log('Updated ALL_USERS: ', ALL_USERS);
 		}
 	});
 
@@ -419,7 +419,7 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			gameData.fightStarted = _data;
 			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
-				clientLookup[garyNPCClientId].health = 500
+				clientLookup[garyNPCClientId].health = 50
 					;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
@@ -430,213 +430,209 @@ io.on('connection', function (socket) {
 		io.emit('SPAWN_PROJECTILE', _data);
 	});
 
+	// 1) Define the speakLine helper before socket.on
+	async function speakLine(text, voice = "nova", speed = 0.8) {
+	// This awaits text_to_voice
+	await text_to_voice(text, voice, speed);
+	// Then waits 1 second before returning
+	await new Promise((resolve) => setTimeout(resolve, 1000));
+	}
+
 	socket.on('ATTACK', async function (_data) {
 		// 1) Parse data
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
-
+	  
 		console.log(
-			"ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage + " damage"
+		  "ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage + " damage"
 		);
 		console.log("data.damage-typeof: ", typeof victimUser.health);
-
+	  
 		if (currentUser && attackerUser && victimUser) {
-			// 2) Basic attack logic
+		  // 2) Basic attack logic
+		  publisher.publish(
+			"clubmoon-events",
+			JSON.stringify({ channel: "HEALTH", data, attackerUser, victimUser, event: "DAMNAGE" })
+		  );
+		  victimUser.health -= Number(data.damage);
+		  console.log("victimUser.health: ", victimUser.health);
+	  
+		  if (victimUser.health <= 0) {
+			console.log("DEAD EVENT || " + victimUser.name + " has died");
 			publisher.publish(
-				"clubmoon-events",
-				JSON.stringify({ channel: "HEALTH", data, attackerUser, victimUser, event: "DAMNAGE" })
+			  "clubmoon-events",
+			  JSON.stringify({ channel: "HEALTH", data, attackerUser, victimUser, event: "DEAD" })
 			);
-			victimUser.health -= Number(data.damage);
-			console.log("victimUser.health: ", victimUser.health);
-
-			if (victimUser.health <= 0) {
-				console.log("DEAD EVENT || " + victimUser.name + " has died");
-				publisher.publish(
-					"clubmoon-events",
-					JSON.stringify({ channel: "HEALTH", data, attackerUser, victimUser, event: "DEAD" })
-				);
+		  }
+		  victimUser.lastAttackedTime = new Date().getTime();
+		  io.emit("UPDATE_HEALTH", victimUser.id, victimUser.health);
+	  
+		  // 3) If Gary is the victim, do raid logic
+		  if (victimUser.id === garyNPCClientId) {
+			let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
+			if (userIndex > -1) {
+			  // Add user to GARY_RAID_PARTY if not already in there
+			  if (!GARY_RAID_PARTY.includes(userIndex)) {
+				GARY_RAID_PARTY.push(userIndex);
+			  }
+			  // Track damage
+			  USER_DAMAGE_CURRENT_RAID[attackerUser.id] =
+				(USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage);
 			}
-			victimUser.lastAttackedTime = new Date().getTime();
-			io.emit("UPDATE_HEALTH", victimUser.id, victimUser.health);
-
-			// 3) If Gary is the victim, do raid logic
-			if (victimUser.id === garyNPCClientId) {
-				let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
-				if (userIndex > -1) {
-					// Add user to GARY_RAID_PARTY if not already in there
-					if (!GARY_RAID_PARTY.includes(userIndex)) {
-						GARY_RAID_PARTY.push(userIndex);
+	  
+			// 4) If Gary's health falls below 0 => Gary is dead
+			if (victimUser.health < 0) {
+			  console.log("Gary is DEAD!");
+	  
+			  // Make sure we haven't paid out for this kill yet
+			  if (!IS_PAYED_OUT) {
+				console.log("GARRY_DEATHS", GARRY_DEATHS);
+				console.log("IS_PAYED_OUT", IS_PAYED_OUT);
+	  
+				// Record Gary death
+				let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
+				GARRY_DEATHS.push({
+				  time: Date.now(),
+				  users: participants,
+				});
+	  
+				IS_PAYED_OUT = true;
+	  
+				//---------------------------------------------------
+				// A) Speak: "Gary defeated" + number of participants
+				//---------------------------------------------------
+				await speakLine("Gary Has been Defeated!");
+				const numParticipants = GARY_RAID_PARTY.length;
+				await speakLine(`numParticipants ${numParticipants}`);
+				console.log("numParticipants: ", numParticipants);
+	  
+				//---------------------------------------------------
+				// Only proceed if we have participants
+				//---------------------------------------------------
+				if (numParticipants > 0) {
+				  // 1) Gather total damage & track MVP
+				  let totalDamage = 0;
+				  let damageMap = {}; // { socketId: damage }
+				  let mvp = { name: "", damage: 0 };
+	  
+				  for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
+					let ui = GARY_RAID_PARTY[i];
+					let userSocketId = ALL_USERS[ui].socketId;
+					let dmg = Number(USER_DAMAGE_CURRENT_RAID[userSocketId] || 0);
+					damageMap[userSocketId] = dmg;
+					totalDamage += dmg;
+	  
+					if (dmg > mvp.damage) {
+					  mvp = { name: ALL_USERS[ui].name, damage: dmg };
 					}
-					// Track damage
-					USER_DAMAGE_CURRENT_RAID[attackerUser.id] =
-						(USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage);
-				}
-
-				// 4) If Gary's health falls below 0 => Gary is dead
-				if (victimUser.health < 0) {
-					console.log("Gary is DEAD!");
-
-					// Make sure we haven't paid out for this kill yet
-					if (!IS_PAYED_OUT) {
-						console.log("GARRY_DEATHS", GARRY_DEATHS);
-						console.log("IS_PAYED_OUT", IS_PAYED_OUT);
-
-						// Record Gary death
-						let participants = GARY_RAID_PARTY.map((ui) => ALL_USERS[ui].name);
-						GARRY_DEATHS.push({
-							time: Date.now(),
-							users: participants,
+				  }
+				  console.log("Total damage:", totalDamage);
+				  console.log("MVP so far:", mvp);
+	  
+				  // 2) Speak each user's total damage
+				  for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
+					let ui = GARY_RAID_PARTY[i];
+					let user = ALL_USERS[ui];
+					let userDamage = damageMap[user.socketId] || 0;
+	  
+					await speakLine(`User ${user.name} did ${userDamage} damage to Gary.`);
+				  }
+	  
+				  // 3) Speak MVP *before* sending
+				  if (mvp.name && mvp.damage > 0) {
+					await speakLine(`The MVP is ${mvp.name} with ${mvp.damage} damage!`);
+				  }
+	  
+				  //---------------------------------------------------
+				  // B) Send tokens sequentially with 5-second delay
+				  //---------------------------------------------------
+				  let results = [];
+	  
+				  for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
+					let ui = GARY_RAID_PARTY[i];
+					let user = ALL_USERS[ui];
+					let userDamage = damageMap[user.socketId] || 0;
+	  
+					let userShare = 0;
+					if (totalDamage > 0) {
+					  userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
+					}
+	  
+					console.log(`User ${user.name} has userShare: ${userShare}`);
+	  
+					// Only send if user has a valid address & non-zero share
+					if (userShare > 0 && user.amount) {  // Using 'amount' as wallet address
+					  try {
+						console.log("Sending token to user: ", user.name, " with address: ", user.amount, " and share: ", userShare);
+						let sendTokenTx = await wallet.sendToken(
+						  "5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+						  user.amount, // 'user.amount' holds the wallet address
+						  userShare,
+						  "solana:mainnet",
+						  true
+						);
+						console.log("Sent Token Tx:", sendTokenTx);
+						results.push({
+						  success: true,
+						  userName: user.name,
+						  userDamage,
+						  userShare,
 						});
-
-						IS_PAYED_OUT = true;
-
-						// Announce Gary's defeat and # participants
-						await text_to_voice("Gary Has been Defeated!", "nova", 0.8);
-						const numParticipants = GARY_RAID_PARTY.length;
-						await text_to_voice("numParticipants " + numParticipants, "nova", 0.8);
-						console.log("numParticipants: ", numParticipants);
-
-						// Only proceed if we have participants
-						if (numParticipants > 0) {
-							// -----------------------------------------
-							// A) Gather total damage & track MVP
-							// -----------------------------------------
-							let totalDamage = 0;
-							let damageMap = {}; // { socketId: damage }
-							let mvp = { name: "", damage: 0 };
-
-							for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
-								let ui = GARY_RAID_PARTY[i];
-								let userSocketId = ALL_USERS[ui].socketId;
-								let dmg = Number(USER_DAMAGE_CURRENT_RAID[userSocketId] || 0);
-								damageMap[userSocketId] = dmg;
-								totalDamage += dmg;
-
-								if (dmg > mvp.damage) {
-									mvp = { name: ALL_USERS[ui].name, damage: dmg };
-								}
-							}
-							console.log("Total damage:", totalDamage);
-							console.log("MVP so far:", mvp);
-
-							// -----------------------------------------
-							// B) Build "sendToken" promises for parallel sends
-							// -----------------------------------------
-							let sendPromises = [];
-
-							for (let i = 0; i < GARY_RAID_PARTY.length; i++) {
-								let ui = GARY_RAID_PARTY[i];
-								let user = ALL_USERS[ui];
-								let userDamage = damageMap[user.socketId] || 0;
-
-								// Calculate user's reward
-								let userShare = 0;
-								if (totalDamage > 0) {
-									userShare = Math.floor((userDamage / totalDamage) * REWARDS_TOTAL);
-								}
-
-								console.log(`User ${user.name} has userShare: ${userShare}`);
-
-								// Only send if user has a valid address & non-zero share
-								if (userShare > 0 && user.amount) {
-									let sendPromise = wallet
-										.sendToken(
-											"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-											user.amount,
-											userShare,
-											"solana:mainnet",
-											true
-										)
-										.then((sendTokenTx) => {
-											console.log("Sent Token Tx:", sendTokenTx);
-											// Return data needed for final announcements
-											return {
-												success: true,
-												userName: user.name,
-												userDamage,
-												userShare,
-											};
-										})
-										.catch((error) => {
-											console.error("Error sending token reward:", error);
-											return {
-												success: false,
-												userName: user.name,
-												userDamage,
-												userShare,
-												error,
-											};
-										});
-
-									sendPromises.push(sendPromise);
-								} else {
-									console.log(
-										`User ${user.name} gets no reward (no damage or no user address).`
-									);
-								}
-							}
-
-							// -----------------------------------------
-							// C) Send tokens in parallel (Promise.all)
-							// -----------------------------------------
-							let results = [];
-							if (sendPromises.length > 0) {
-								results = await Promise.all(sendPromises);
-							}
-
-							// -----------------------------------------
-							// D) Voice out success messages in series
-							// -----------------------------------------
-							for (let result of results) {
-								if (result.success) {
-									// Announce damage + reward
-									await text_to_voice(
-										`User ${result.userName} has done ${result.userDamage} damage, and was rewarded ${result.userShare} Club Moon tokens.`,
-										"nova",
-										0.8
-									);
-									// 1s gap to prevent overlap
-									await new Promise((resolve) => setTimeout(resolve, 1000));
-								} else {
-									// If you want to speak errors:
-									// await text_to_voice(`Send failed for ${result.userName}`, "nova", 0.8);
-									// await new Promise((resolve) => setTimeout(resolve, 1000));
-								}
-							}
-
-							// -----------------------------------------
-							// E) Finally, praise the MVP
-							// -----------------------------------------
-							if (mvp.name && mvp.damage > 0) {
-								await text_to_voice(
-									`Good job on MVP top damage: ${mvp.name} with ${mvp.damage} damage!`,
-									"nova",
-									0.8
-								);
-								// 1s gap
-								await new Promise((resolve) => setTimeout(resolve, 1000));
-							}
-						} else {
-							console.log("No participants in GARY_RAID_PARTY, no rewards distributed.");
-						}
-
-						// -----------------------------------------
-						// Reset raid state after 15 minutes
-						// -----------------------------------------
-						setTimeout(() => {
-							IS_PAYED_OUT = false;
-							GARY_RAID_PARTY = [];
-							USER_DAMAGE_CURRENT_RAID = {};
-							console.log(
-								"Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes."
-							);
-						}, 15 * 60 * 1000);
+					  } catch (error) {
+						console.error("Error sending token reward:", error);
+						results.push({
+						  success: false,
+						  userName: user.name,
+						  userDamage,
+						  userShare,
+						  error,
+						});
+					  }
+					} else {
+					  console.log(`User ${user.name} gets no reward (no damage or no user address).`);
 					}
+	  
+					// Wait for 5 seconds before sending to the next user
+					await new Promise((resolve) => setTimeout(resolve, 5000));
+				  }
+	  
+				  //---------------------------------------------------
+				  // C) Speak success messages (serial, 1s gap)
+				  //---------------------------------------------------
+				  for (let result of results) {
+					if (result.success) {
+					  await speakLine(
+						`User ${result.userName} did ${result.userDamage} damage and was rewarded ${result.userShare} Club Moon tokens.`
+					  );
+					  // Wait 1 second between messages
+					  await new Promise((resolve) => setTimeout(resolve, 1000));
+					} else {
+					  // Optionally handle errors
+					  // await speakLine(`Send failed for ${result.userName}`);
+					}
+				  }
+				} else {
+				  console.log("No participants in GARY_RAID_PARTY, no rewards distributed.");
 				}
+	  
+				//---------------------------------------------------
+				// Reset raid state after 15 minutes
+				//---------------------------------------------------
+				setTimeout(() => {
+				  IS_PAYED_OUT = false;
+				  GARY_RAID_PARTY = [];
+				  USER_DAMAGE_CURRENT_RAID = {};
+				  console.log(
+					"Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes."
+				  );
+				}, 15 * 60 * 1000);
+			  }
 			}
+		  }
 		}
-	});
+	  });
+	  
 
 
 	socket.on("VOICE", function (data) {
