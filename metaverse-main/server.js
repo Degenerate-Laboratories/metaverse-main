@@ -650,7 +650,7 @@ io.on('connection', function (socket) {
 				  console.log(
 					"Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes."
 				  );
-				}, 15 * 60 * 1000);
+				}, 5 * 1000);
 			  }
 			}
 		  }
