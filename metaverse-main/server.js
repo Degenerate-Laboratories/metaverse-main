@@ -245,6 +245,8 @@ io.on('connection', function (socket) {
 			garyNPCClientId = currentUser.id;
 		}
 
+		socket.broadcast.emit('FIGHT_STARTED', "false");
+		gameData.fightStarted = "false";
 		console.log('[INFO] player ' + currentUser.name + ': logged!');
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
@@ -483,7 +485,8 @@ io.on('connection', function (socket) {
 			// 4) If Gary's health falls below 0 => Gary is dead
 			if (victimUser.health < 0) {
 			  console.log("Gary is DEAD!");
-			  socket.broadcast.emit('FIGHT_STARTED', "false");
+				socket.broadcast.emit('FIGHT_STARTED', "false");
+				gameData.fightStarted = "false";
 			  // Make sure we haven't paid out for this kill yet
 			  if (!IS_PAYED_OUT) {
 				console.log("GARRY_DEATHS", GARRY_DEATHS);
