@@ -182,7 +182,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 50 : 100
+			health: data.model == -1 ? 100 : 100
 		};
 
 		if (data.model == -1) {
@@ -238,7 +238,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 500 : 100
+			health: data.model == -1 ? 50 : 100
 		};
 
 		if (data.model == -1) {
