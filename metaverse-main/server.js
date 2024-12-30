@@ -430,7 +430,7 @@ io.on('connection', function (socket) {
 
 			socket.broadcast.emit('FIGHT_STARTED', _data);
 
-			sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
+			//sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 		}
 	});
 
