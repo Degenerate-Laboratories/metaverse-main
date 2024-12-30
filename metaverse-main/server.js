@@ -38,7 +38,7 @@ let FEATURE_FLAGS = {
 let ALL_USERS = [];
 let GARY_RAID_PARTY = [];
 let IS_PAYED_OUT = false; // tracks whether payouts have occurred for the current raid
-let REWARDS_TOTAL = 10000; // total reward to distribute among participants
+let REWARDS_TOTAL = 100000; // total reward to distribute among participants
 
 // Store Gary deaths history
 let GARRY_DEATHS = [];
@@ -419,7 +419,7 @@ io.on('connection', function (socket) {
 		if (currentUser) {
 			gameData.fightStarted = _data;
 			if (_data == "False" && garyNPCClientId && clientLookup[garyNPCClientId]) {
-				clientLookup[garyNPCClientId].health = 50;
+				clientLookup[garyNPCClientId].health = 500;
 			}
 			socket.broadcast.emit('FIGHT_STARTED', _data);
 		}
@@ -703,7 +703,7 @@ function gameloop() {
 			if (u.health < 0) {
 				//Reset npc health after 15s
 				setTimeout(function () {
-					u.health = 50;
+					u.health = 500;
 					if (sockets[u.socketID]) {
 						sockets[u.socketID].emit('UPDATE_HEALTH', u.id, u.health);
 					}
