@@ -490,7 +490,7 @@ io.on('connection', function (socket) {
 			}
 	  
 			// 4) If Gary's health falls below 0 => Gary is dead
-			if (victimUser.health < 0) {
+			if (victimUser.health <= 0) {
 			  console.log("Gary is DEAD!");
 				socket.broadcast.emit('FIGHT_STARTED', "false");
 				gameData.fightStarted = "false";
@@ -650,7 +650,7 @@ io.on('connection', function (socket) {
 				  console.log(
 					"Reset IS_PAYED_OUT, GARY_RAID_PARTY, and USER_DAMAGE_CURRENT_RAID after 15 minutes."
 				  );
-				}, 5 * 1000);
+				}, 60 * 1000);
 			  }
 			}
 		  }
