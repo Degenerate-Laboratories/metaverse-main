@@ -238,7 +238,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 500 : 100
+			health: data.model == -1 ? 1000 : 100
 		};
 
 		if (data.model == -1) {
@@ -422,7 +422,7 @@ io.on('connection', function (socket) {
 			gameData.fightStarted = _data;
 			if (_data != "True" && garyNPCClientId && clientLookup[garyNPCClientId]) {
 				
-				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 500);
+				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 1000);
 
 			}
 
@@ -580,6 +580,9 @@ io.on('connection', function (socket) {
 						try {
 						  attempts++;
 						  console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.amount} and share: ${userShare}`);
+						  await speakLine(
+							`Sending ${userShare} Club Moon tokens to ${user.name}`
+						  );
 						  let sendTokenTx = await wallet.sendToken(
 							"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
 							user.amount, // 'user.amount' holds the wallet address
@@ -588,6 +591,9 @@ io.on('connection', function (socket) {
 							true
 						  );
 						  console.log("Sent Token Tx:", sendTokenTx);
+						  await speakLine(
+							`Send Confirmed!`
+						  );
 						  results.push({
 							success: true,
 							userName: user.name,
@@ -626,9 +632,9 @@ io.on('connection', function (socket) {
 				  //---------------------------------------------------
 				  for (let result of results) {
 					if (result.success) {
-					  await speakLine(
-						`User ${result.userName} did ${result.userDamage} damage and was rewarded ${result.userShare} Club Moon tokens.`
-					  );
+					//   await speakLine(
+					// 	`User ${result.userName} did ${result.userDamage} damage and was rewarded ${result.userShare} Club Moon tokens.`
+					//   );
 					  // Wait 1 second between messages
 					  await new Promise((resolve) => setTimeout(resolve, 1000));
 					} else {
