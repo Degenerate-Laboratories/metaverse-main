@@ -356,6 +356,10 @@ io.on('connection', function (socket) {
 		}
 	});
 
+	socket.on('RESET_GARY_HEALTH', function (_data) {
+		resetGaryHealth();
+	});
+
 	socket.on('PRIVATE_MESSAGE', function (_data) {
 		const data = JSON.parse(_data);
 		publisher.publish('clubmoon-messages', JSON.stringify({ channel: 'PRIVATE_MESSAGE', data }));
@@ -728,6 +732,17 @@ function gameloop() {
 			}
 		}
 	});
+}
+
+function resetGaryHealth() {
+	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
+		let gary = clientLookup[garyNPCClientId];
+		gary.health = 1000; // Set Gary's health to full
+		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
+		console.log(`Gary's health has been reset to ${gary.health}`);
+	} else {
+		console.log('Gary is not currently in the game.');
+	}
 }
 
 setInterval(gameloop, 1000);
