@@ -38,7 +38,7 @@ let FEATURE_FLAGS = {
 let ALL_USERS = [];
 let GARY_RAID_PARTY = [];
 let IS_PAYED_OUT = false; // tracks whether payouts have occurred for the current raid
-let REWARDS_TOTAL = 100000; // total reward to distribute among participants
+let REWARDS_TOTAL = 30000; // total reward to distribute among participants
 
 // Store Gary deaths history
 let GARRY_DEATHS = [];
@@ -354,6 +354,10 @@ io.on('connection', function (socket) {
 			ALL_USERS[userIndex].amount = data.message; // 'amount' is wallet address
 			console.log('Updated ALL_USERS: ', ALL_USERS);
 		}
+	});
+
+	socket.on('RESET_GARY_HEALTH', function (_data) {
+		resetGaryHealth();
 	});
 
 	socket.on('PRIVATE_MESSAGE', function (_data) {
@@ -728,6 +732,17 @@ function gameloop() {
 			}
 		}
 	});
+}
+
+function resetGaryHealth() {
+	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
+		let gary = clientLookup[garyNPCClientId];
+		gary.health = 1000; // Set Gary's health to full
+		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
+		console.log(`Gary's health has been reset to ${gary.health}`);
+	} else {
+		console.log('Gary is not currently in the game.');
+	}
 }
 
 setInterval(gameloop, 1000);
