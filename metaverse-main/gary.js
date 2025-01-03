@@ -15,6 +15,7 @@ global.USER_DAMAGE_CURRENT_RAID = {};
 
 // Import voice utilities
 const { text_to_voice, speakLine } = require('./voiceUtils');
+const {publisher} = require("@pioneer-platform/default-redis");
 
 /**
  * Main function for handling an attack event.
@@ -50,14 +51,18 @@ async function handleAttack(data, attackerUser, victimUser, io, socket, publishe
         // Find attacker in ALL_USERS and add to raid party
         let userIndex = global.ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
         if (userIndex > -1) {
+
             // Add user to GARY_RAID_PARTY if not already in there
             if (!global.GARY_RAID_PARTY.includes(userIndex)) {
                 global.GARY_RAID_PARTY.push(userIndex);
             }
+
             // Track damage
             global.USER_DAMAGE_CURRENT_RAID[attackerUser.id] = 
                 (global.USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage);
         }
+
+        publisher.publish('clubmoon-raid', 'attackerUser: '+JSON.stringify(attackerUser) + '  your health' + victimUser.health + ' ');
 
         if(victimUser.health <= 0){
             await handleGaryDeath(attackerUser, io, socket, publisher);
