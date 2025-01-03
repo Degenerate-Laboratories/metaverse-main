@@ -35,7 +35,6 @@ let FEATURE_FLAGS = {
 	ROLL:false
 };
 
-let ALL_USERS = [];
 let gameData = {};
 let garyNPCClientId = null;
 
@@ -119,7 +118,7 @@ let ROLL = {
 
 // keep references to wallet, openai, etc. here
 global.wallet = SolanaLib.init({ mnemonic: seed });
-global.ALL_USERS = ALL_USERS;
+global.ALL_USERS = [];
 global.gameData = gameData;
 global.garyNPCClientId = garyNPCClientId;
 
@@ -216,7 +215,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 10 : 100
+			health: data.model == -1 ? 1 : 1000000
 		};
 
 		if (data.model == -1) {
@@ -326,11 +325,11 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-wallet-connect', JSON.stringify({ channel: 'WALLET_MESSAGE', data }));
 		console.log("User Address: " + data.message);
 
-		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
+		const userIndex = global.ALL_USERS.findIndex((u) => u.socketId === data.id);
 		if(userIndex >= 0) {
 			// Update user record with their wallet info
 			ALL_USERS[userIndex].amount = data.message; // 'amount' is wallet address
-			console.log('Updated ALL_USERS: ', ALL_USERS);
+			console.log('Updated global.ALL_USERS: ', global.ALL_USERS);
 		}
 	});
 
