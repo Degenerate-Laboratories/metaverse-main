@@ -141,6 +141,24 @@ function broadcastEventMessage(msg) {
 
 global.broadcastEventMessage = broadcastEventMessage;
 
+subscriber.on('message', async function (channel, payloadS) {
+	let tag = TAG + ' | publishToGame | ';
+	try {
+		console.log(tag, "event: ", payloadS);
+		console.log(tag, "channel: ", channel);
+		if (channel === 'clubmoon-publish') {
+			let payload = JSON.parse(payloadS);
+			let { text, voice, speed } = payload;
+			console.log(tag, "text: ", text);
+			console.log(tag,"voice:", voice);
+			console.log(tag,"speed:", speed);
+			await speakLine(text, voice, speed, io);
+		}
+	} catch (e) {
+		console.error(e);
+	}
+});
+
 io.on('connection', function (socket) {
 	console.log('A user ready for connection!');
 	let currentUser;
@@ -173,7 +191,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 100 : 100
+			health: data.model == -1 ? 1000 : 100
 		};
 
 		if (data.model == -1) {
@@ -230,7 +248,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 50 : 1000000
+			health: data.model == -1 ? 1000 : 100
 		};
 
 		if (data.model == -1) {

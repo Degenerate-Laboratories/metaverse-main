@@ -8,13 +8,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // At the top, initialize globals
 global.GARY_RAID_PARTY = [];
 global.IS_PAYED_OUT = false;
-global.REWARDS_TOTAL = 30000;
+global.REWARDS_TOTAL = 100000;
 global.IS_GARY_ALIVE = true;
 global.GARRY_DEATHS = [];
 global.USER_DAMAGE_CURRENT_RAID = {};
 
 // Import voice utilities
-const { text_to_voice, speakLine } = require('./voiceUtils');
+const { speakLine } = require('./voiceUtils');
 const {publisher} = require("@pioneer-platform/default-redis");
 
 /**

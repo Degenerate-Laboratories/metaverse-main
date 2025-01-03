@@ -39,6 +39,44 @@ function calculateSpeakingTime(text) {
     return Math.max(1000, (words / wordsPerSecond) * 1000 + basePause);
 }
 
+function sanitizeText(text) {
+    return text
+        .replace(/[^\w\s.,!?-]/g, '') 
+        .replace(/—/g, '-')           
+        .replace(/'/g, "'")           
+        .replace(/"/g, '"')           
+        .trim();
+}
+
+// Main speak function
+async function speakLine(text, voice = "nova", speed = 0.8, io = null) {
+    try {
+        const sanitizedText = sanitizeText(text);
+        console.log("Speaking:", sanitizedText);
+        
+        // Add to queue
+        global.SPEECH_QUEUE.push({ text: sanitizedText, voice, speed, io });
+        
+        // Try to process queue
+        processSpeechQueue();
+        
+        // Return a promise that resolves when this specific line has been spoken
+        return new Promise((resolve) => {
+            const checkQueue = setInterval(() => {
+                const isThisLineSpoken = !global.SPEECH_QUEUE.some(item => 
+                    item.text === sanitizedText);
+                if (isThisLineSpoken) {
+                    clearInterval(checkQueue);
+                    resolve();
+                }
+            }, 100);
+        });
+    } catch (error) {
+        console.error("Error in speakLine:", error);
+        return Promise.resolve();
+    }
+}
+
 // Helper function for the speech queue
 async function processSpeechQueue() {
     if (global.IS_SPEAKING || global.SPEECH_QUEUE.length === 0) return;
@@ -48,41 +86,32 @@ async function processSpeechQueue() {
     while (global.SPEECH_QUEUE.length > 0) {
         const { text, voice, speed, io } = global.SPEECH_QUEUE[0];
         
-        console.log("Speaking:", text);
+        console.log("Processing speech:", text);
         let audioDataURI = await text_to_voice(text, voice, speed);
-        if (audioDataURI && io) {
-            io.emit('UPDATE_VOICE', audioDataURI);
-        }
         
-        // Wait for the calculated speaking time
-        const speakingTime = calculateSpeakingTime(text) / speed;
-        await new Promise((resolve) => setTimeout(resolve, speakingTime));
+        if (audioDataURI) {
+            // Add debug logging
+            console.log("Generated audio data URI, length:", audioDataURI.length);
+            
+            if (io) {
+                console.log("Emitting UPDATE_VOICE event");
+                io.emit('UPDATE_VOICE', audioDataURI);
+            } else {
+                console.warn("No io object available for emission");
+            }
+            
+            // Wait for the calculated speaking time
+            const speakingTime = calculateSpeakingTime(text) / speed;
+            await new Promise((resolve) => setTimeout(resolve, speakingTime));
+        } else {
+            console.error("Failed to generate audio for text:", text);
+        }
         
         // Remove the processed speech from queue
         global.SPEECH_QUEUE.shift();
     }
     
     global.IS_SPEAKING = false;
-}
-
-// Main speak function
-async function speakLine(text, voice = "nova", speed = 0.8, io = null) {
-    // Add to queue
-    global.SPEECH_QUEUE.push({ text, voice, speed, io });
-    
-    // Try to process queue (will only start if not already speaking)
-    processSpeechQueue();
-    
-    // Return a promise that resolves when this specific line has been spoken
-    return new Promise((resolve) => {
-        const checkQueue = setInterval(() => {
-            const isThisLineSpoken = !global.SPEECH_QUEUE.some(item => item.text === text);
-            if (isThisLineSpoken) {
-                clearInterval(checkQueue);
-                resolve();
-            }
-        }, 100);
-    });
 }
 
 module.exports = {
