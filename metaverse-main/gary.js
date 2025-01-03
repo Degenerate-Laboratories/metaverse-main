@@ -99,7 +99,8 @@ async function handleGaryDeath(attackerUser, io, socket, publisher) {
     // Payout logic
     if (!IS_PAYED_OUT) {
         IS_PAYED_OUT = true;
-        // Record Gary’s death
+        // Record Gary’s
+        console.log('global: ',global)
         let participants = GARY_RAID_PARTY.map(ui => global.ALL_USERS[ui].name);
         GARRY_DEATHS.push({ time: Date.now(), users: participants });
 
