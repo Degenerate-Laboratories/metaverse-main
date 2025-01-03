@@ -175,7 +175,7 @@ io.on('connection', function (socket) {
 		ALL_USERS.push(user);
 		console.log(currentUser.name + ' has joined the game')
 		broadcastEventMessage(currentUser.name + ' has joined the game');
-		await speakLine(currentUser.name + ' has joined the game', 'nova', 0.8, io);
+		speakLine(currentUser.name + ' has joined the game', 'nova', 0.8, io);
 
 		clients.push(currentUser);
 		clientLookup[currentUser.id] = currentUser;
@@ -227,7 +227,7 @@ io.on('connection', function (socket) {
 		publisher.publish('clubmoon-events', currentUser.name + ' has joined the game');
 		publisher.publish('clubmoon-gary-join', JSON.stringify(currentUser));
 
-		await speakLine(currentUser.name + ' has joined the game', 'nova', 0.8, io);
+		speakLine(currentUser.name + ' has joined the game', 'nova', 0.8, io);
 		clients.push(currentUser);
 		clientLookup[currentUser.id] = currentUser;
 		sockets[currentUser.id] = socket;
