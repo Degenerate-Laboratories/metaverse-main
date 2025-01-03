@@ -20,6 +20,7 @@ const io = require('socket.io')(http);
 const path = require('path');
 const { subscriber, publisher, redis } = require('@pioneer-platform/default-redis');
 const OpenAI = require('openai');
+const { speakLine } = require('./voiceUtils');
 
 const openai = new OpenAI({
 	apiKey: OPENAI_API_KEY,
@@ -45,8 +46,6 @@ const {
 	IS_GARY_ALIVE,
 	GARRY_DEATHS,
 	USER_DAMAGE_CURRENT_RAID,
-	text_to_voice,
-	speakLine,
 	handleAttack,
 	handleGaryDeath,
 	distributeGaryRewards,

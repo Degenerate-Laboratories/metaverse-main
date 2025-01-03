@@ -12,91 +12,13 @@ global.REWARDS_TOTAL = 30000;
 global.IS_GARY_ALIVE = true;
 global.GARRY_DEATHS = [];
 global.USER_DAMAGE_CURRENT_RAID = {};
-global.SPEECH_QUEUE = [];
-global.IS_SPEAKING = false;
 
-// Utility for text-to-speech
-async function text_to_voice(text, voice, speed) {
-    try {
-        if (!voice) voice = 'echo';
-        if (!speed) speed = 1.0;
-        const response = await openai.audio.speech.create({
-            input: text,
-            voice,
-            speed,
-            model: 'tts-1',
-        });
-        const chunks = [];
-        for await (const chunk of response.body) {
-            chunks.push(chunk);
-        }
-        const audioBuffer = Buffer.concat(chunks);
-        const base64Audio = audioBuffer.toString('base64');
-        const audioDataURI = `data:audio/mp3;base64,${base64Audio}`;
-        return audioDataURI;
-    } catch (e) {
-        console.error("text_to_voice error:", e);
-        return null;
-    }
-}
-
-// Add this helper function
-function calculateSpeakingTime(text) {
-    const words = text.trim().split(/\s+/).length;
-    const wordsPerSecond = 2.5; // Average speaking rate
-    const basePause = 500; // Base pause in milliseconds
-    return Math.max(1000, (words / wordsPerSecond) * 1000 + basePause);
-}
-
-// Add this helper function for the speech queue
-async function processSpeechQueue() {
-    if (global.IS_SPEAKING || global.SPEECH_QUEUE.length === 0) return;
-    
-    global.IS_SPEAKING = true;
-    
-    while (global.SPEECH_QUEUE.length > 0) {
-        const { text, voice, speed, io } = global.SPEECH_QUEUE[0];
-        
-        console.log("Speaking:", text);
-        let audioDataURI = await text_to_voice(text, voice, speed);
-        if (audioDataURI && io) {
-            io.emit('UPDATE_VOICE', audioDataURI);
-        }
-        
-        // Wait for the calculated speaking time
-        const speakingTime = calculateSpeakingTime(text) / speed;
-        await new Promise((resolve) => setTimeout(resolve, speakingTime));
-        
-        // Remove the processed speech from queue
-        global.SPEECH_QUEUE.shift();
-    }
-    
-    global.IS_SPEAKING = false;
-}
-
-// Modify speakLine to use the queue
-async function speakLine(text, voice = "nova", speed = 0.8, io = null) {
-    // Add to queue
-    global.SPEECH_QUEUE.push({ text, voice, speed, io });
-    
-    // Try to process queue (will only start if not already speaking)
-    processSpeechQueue();
-    
-    // Return a promise that resolves when this specific line has been spoken
-    return new Promise((resolve) => {
-        const checkQueue = setInterval(() => {
-            const isThisLineSpoken = !global.SPEECH_QUEUE.some(item => item.text === text);
-            if (isThisLineSpoken) {
-                clearInterval(checkQueue);
-                resolve();
-            }
-        }, 100);
-    });
-}
+// Import voice utilities
+const { text_to_voice, speakLine } = require('./voiceUtils');
 
 /**
  * Main function for handling an attack event.
- * Subtracts victim’s health, sets lastAttackedTime, etc.
+ * Subtracts victim's health, sets lastAttackedTime, etc.
  */
 async function handleAttack(data, attackerUser, victimUser, io, socket, publisher) {
     publisher.publish("clubmoon-events", JSON.stringify({
@@ -144,7 +66,7 @@ async function handleAttack(data, attackerUser, victimUser, io, socket, publishe
 }
 
 /**
- * Called when Gary’s health hits 0 or below.
+ * Called when Gary's health hits 0 or below.
  */
 async function handleGaryDeath(attackerUser, io, socket, publisher) {
     console.log("Gary is DEAD!");
@@ -300,8 +222,6 @@ module.exports = {
     get IS_GARY_ALIVE() { return global.IS_GARY_ALIVE; },
     get GARRY_DEATHS() { return global.GARRY_DEATHS; },
     get USER_DAMAGE_CURRENT_RAID() { return global.USER_DAMAGE_CURRENT_RAID; },
-    text_to_voice,
-    speakLine,
     handleAttack,
     handleGaryDeath,
     distributeGaryRewards,
