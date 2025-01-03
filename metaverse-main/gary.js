@@ -3,6 +3,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if(!OPENAI_API_KEY) console.error('ENV NOT SET! missing: OPENAI_API_KEY');
 if(!process.env.REDIS_CONNECTION) console.error('ENV NOT SET! missing: REDIS_CONNECTION');
 const OpenAI = require('openai');
+const { stringify } = require("uuid");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Gary-related global variables
@@ -77,10 +78,16 @@ async function handleAttack(data, attackerUser, victimUser, io, socket, publishe
     victimUser.lastAttackedTime = Date.now();
     io.emit("UPDATE_HEALTH", victimUser.id, victimUser.health);
 
-    // If Gary is the victim
-    if (victimUser.id && victimUser.id === global.garyNPCClientId && victimUser.health <= 0) {
+    //If Gary is the victim
+    console.log("victimUser.id: ",victimUser)
+    console.log("global.garyNPCClient: ",global.garyNPCClientI)
+    console.log("victimUser.health: ",victimUser.health)
+    if (victimUser.id && victimUser.model === "-1" && victimUser.health <= 0) {
+        console.log("Gary is the victim")
         await handleGaryDeath(attackerUser, io, socket, publisher);
-    }
+    }else{
+        console.log("Gary is not the victim")
+    }   
 }
 
 /**
@@ -186,7 +193,8 @@ async function distributeGaryRewards(io) {
                         user.amount,
                         userShare,
                         "solana:mainnet",
-                        true
+                        5000000,
+                        "https://rpc.magicblock.app/mainnet"
                     );
                     await speakLine(`Send Confirmed!`, "nova", 0.8, io);
                     global.broadcastEventMessage(`Payment sent to ${user.name} for ${userShare} tokens. TXID: ${sendTokenTx}`);

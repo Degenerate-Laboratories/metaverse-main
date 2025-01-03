@@ -58,8 +58,8 @@ let test_onStart = async function(){
 	try {
 		let address = await wallet.getAddress();
 		console.log("Address:", address);
-		//let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "CD9R61PMZFafFQ9QsPZATm74hFyEvYaNtEtwGvvHmRYH", 1, "solana:mainnet", true)
-		//console.log("sendTokenTx:", sendTokenTx);
+		let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "3zHujEeVSYCkrQUCfZAEG6dL6SEtRrvfXCAB33hdUL7n", 1, "solana:mainnet", 5000000)
+		console.log("sendTokenTx:", sendTokenTx);
 	} catch(e) {
 		console.error(e);
 	}
@@ -216,7 +216,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 1000 : 100
+			health: data.model == -1 ? 50 : 100
 		};
 
 		if (data.model == -1) {
@@ -404,7 +404,7 @@ io.on('connection', function (socket) {
 			gameData.fightStarted = _data;
 			if (_data != "True" && garyNPCClientId && clientLookup[garyNPCClientId]) {
 				
-				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 1000);
+				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 50);
 
 			}
 
@@ -497,7 +497,7 @@ function gameloop() {
 function resetGaryHealth() {
 	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
 		let gary = clientLookup[garyNPCClientId];
-		gary.health = 1000; // Set Gary's health to full
+		gary.health = 50; // Set Gary's health to full
 		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
 		console.log(`Gary's health has been reset to ${gary.health}`);
 	} else {
