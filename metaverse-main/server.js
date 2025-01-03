@@ -48,6 +48,7 @@ let USER_DAMAGE_CURRENT_RAID = {};
 
 let gameData = {};
 let garyNPCClientId = null;
+let garyAlive = false;
 
 let test_onStart = async function(){
 	try {
@@ -243,6 +244,7 @@ io.on('connection', function (socket) {
 
 		if (data.model == -1) {
 			garyNPCClientId = currentUser.id;
+			garyAlive = true;
 		}
 
 		socket.broadcast.emit('FIGHT_STARTED', "false");
@@ -481,7 +483,7 @@ io.on('connection', function (socket) {
 		  io.emit("UPDATE_HEALTH", victimUser.id, victimUser.health);
 	  
 		  // 3) If Gary is the victim, do raid logic
-		  if (victimUser.id === garyNPCClientId) {
+		  if (victimUser.id === garyNPCClientId && garyAlive) {
 			let userIndex = ALL_USERS.findIndex((u) => u.socketId === attackerUser.id);
 			if (userIndex > -1) {
 			  // Add user to GARY_RAID_PARTY if not already in there
@@ -495,6 +497,7 @@ io.on('connection', function (socket) {
 	  
 			// 4) If Gary's health falls below 0 => Gary is dead
 			if (victimUser.health <= 0) {
+				garyAlive = false;
 			  console.log("Gary is DEAD!");
 				socket.broadcast.emit('FIGHT_STARTED', "false");
 				gameData.fightStarted = "false";
@@ -736,6 +739,7 @@ function gameloop() {
 
 function resetGaryHealth() {
 	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
+		garyAlive = true;
 		let gary = clientLookup[garyNPCClientId];
 		gary.health = 1000; // Set Gary's health to full
 		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
