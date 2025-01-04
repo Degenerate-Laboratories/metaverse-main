@@ -595,7 +595,7 @@ io.on('connection', function (socket) {
 							user.amount, // 'user.amount' holds the wallet address
 							userShare,
 							"solana:mainnet",
-							true
+							5000000
 						  );
 						  console.log("Sent Token Tx:", sendTokenTx);
 						  await speakLine(
