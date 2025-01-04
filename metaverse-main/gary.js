@@ -167,16 +167,29 @@ async function distributeGaryRewards(io) {
         // Only send if non-zero share and user has a recorded address
         if (userShare > 0 && user.amount && global.wallet) {
             let success = false;
-            for (let attempts = 0; attempts < 2 && !success; attempts++) {
+            for (let attempts = 0; attempts < 6 && !success; attempts++) {
                 try {
                     await speakLine(`Sending ${userShare} Club Moon tokens to ${user.name}`, "nova", 0.8, io);
-                    let sendTokenTx = await global.wallet.sendToken(
-                        "5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-                        user.amount,
-                        userShare,
-                        "solana:mainnet",
-                        5000000
-                    );
+                    let sendTokenTx 
+                    if(attempts > 0){
+                        sendTokenTx = await global.wallet.sendToken(
+                            "5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+                            user.amount,
+                            userShare,
+                            "solana:mainnet",
+                            15000000,
+                            "https://rpc.magicblock.app/mainnet"
+                        );
+                    }else{
+                            sendTokenTx = await global.wallet.sendToken(
+                            "5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+                            user.amount,
+                            userShare,
+                            "solana:mainnet",
+                            5000000
+                        );
+                    }
+                    
                     await speakLine(`Send Confirmed!`, "nova", 0.8, io);
                     global.broadcastEventMessage(`Payment sent to ${user.name} for ${userShare} tokens. TXID: ${sendTokenTx}`);
                     results.push({
