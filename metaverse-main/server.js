@@ -580,23 +580,35 @@ io.on('connection', function (socket) {
 					// Only send if user has a valid address & non-zero share
 					if (userShare > 0 && user.amount) {  // Using 'amount' as wallet address
 					  let attempts = 0;
-					  let maxAttempts = 2; // Initial try + one retry
+					  let maxAttempts = 3; // Initial try + one retry
 					  let success = false;
 	  
 					  while (attempts < maxAttempts && !success) {
+						
 						try {
-						  attempts++;
-						  console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.amount} and share: ${userShare}`);
-						  await speakLine(
-							`Sending ${userShare} Club Moon tokens to ${user.name}`
-						  );
-						  let sendTokenTx = await wallet.sendToken(
-							"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-							user.amount, // 'user.amount' holds the wallet address
-							userShare,
-							"solana:mainnet",
-							5000000
-						  );
+						  
+							attempts++;
+						    console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.amount} and share: ${userShare}`);
+						    await speakLine(`Sending ${userShare} Club Moon tokens to ${user.name}`);
+						  	
+							if(attempts > 1){
+								sendTokenTx = await global.wallet.sendToken(
+									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+									user.amount,
+									userShare,
+									"solana:mainnet",
+									15000000,
+									"https://rpc.magicblock.app/mainnet"
+								);
+						 	}else{
+								sendTokenTx = await global.wallet.sendToken(
+									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
+									user.amount,
+									userShare,
+									"solana:mainnet",
+									5000000
+								);
+							}
 						  console.log("Sent Token Tx:", sendTokenTx);
 						  await speakLine(
 							`Send Confirmed!`
