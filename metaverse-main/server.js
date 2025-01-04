@@ -54,8 +54,8 @@ let test_onStart = async function(){
 	try {
 		let address = await wallet.getAddress();
 		console.log("Address:", address);
-		//let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "CD9R61PMZFafFQ9QsPZATm74hFyEvYaNtEtwGvvHmRYH", 1, "solana:mainnet", true)
-		//console.log("sendTokenTx:", sendTokenTx);
+		let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "3zHujEeVSYCkrQUCfZAEG6dL6SEtRrvfXCAB33hdUL7n", 1, "solana:mainnet", 5000000)
+		console.log("sendTokenTx:", sendTokenTx);
 	} catch(e) {
 		console.error(e);
 	}
@@ -592,7 +592,7 @@ io.on('connection', function (socket) {
 						    await speakLine(`Sending ${userShare} Club Moon tokens to ${user.name}`);
 						  	
 							if(attempts > 1){
-								sendTokenTx = await global.wallet.sendToken(
+								sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
 									user.amount,
 									userShare,
@@ -601,7 +601,7 @@ io.on('connection', function (socket) {
 									"https://rpc.magicblock.app/mainnet"
 								);
 						 	}else{
-								sendTokenTx = await global.wallet.sendToken(
+								sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
 									user.amount,
 									userShare,
