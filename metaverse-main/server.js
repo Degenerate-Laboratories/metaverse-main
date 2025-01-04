@@ -707,6 +707,11 @@ function resetGaryHealth() {
 		gary.health = 50; // Set Gary's health to full
 		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
 		console.log(`Gary's health has been reset to ${gary.health}`);
+		// Clear raid party and related state
+        global.GARY_RAID_PARTY = [];
+        global.USER_DAMAGE_CURRENT_RAID = {};
+        global.IS_PAYED_OUT = false;
+        global.IS_GARY_ALIVE = true;
 	} else {
 		console.log('Gary is not currently in the game.');
 	}
