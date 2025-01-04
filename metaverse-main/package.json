@@ -15,7 +15,7 @@
     "path": "^0.12.7",
     "socket.io": "^4.6.1",
     "socketio": "^1.0.0",
-    "solana-wallet-1": "^0.1.7",
+    "solana-wallet-1": "^0.1.12",
     "uuid": "^9.0.1"
   },
   "scripts": {
