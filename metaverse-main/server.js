@@ -248,7 +248,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 1000 : 100
+			health: data.model == -1 ? 50 : 100
 		};
 
 		if (data.model == -1) {
@@ -611,7 +611,7 @@ io.on('connection', function (socket) {
 			gameData.fightStarted = _data;
 			if (_data != "True" && garyNPCClientId && clientLookup[garyNPCClientId]) {
 				
-				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 1000);
+				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 50);
 
 			}
 
@@ -704,7 +704,7 @@ function gameloop() {
 function resetGaryHealth() {
 	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
 		let gary = clientLookup[garyNPCClientId];
-		gary.health = 1000; // Set Gary's health to full
+		gary.health = 50; // Set Gary's health to full
 		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
 		console.log(`Gary's health has been reset to ${gary.health}`);
 	} else {
