@@ -38,7 +38,7 @@ let FEATURE_FLAGS = {
 let ALL_USERS = [];
 let GARY_RAID_PARTY = [];
 let IS_PAYED_OUT = false; // tracks whether payouts have occurred for the current raid
-let REWARDS_TOTAL = 30000; // total reward to distribute among participants
+let REWARDS_TOTAL = 10000; // total reward to distribute among participants
 
 // Store Gary deaths history
 let GARRY_DEATHS = [];
@@ -239,7 +239,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 1000 : 100
+			health: data.model == -1 ? 50 : 100
 		};
 
 		if (data.model == -1) {
@@ -428,7 +428,7 @@ io.on('connection', function (socket) {
 			gameData.fightStarted = _data;
 			if (_data != "True" && garyNPCClientId && clientLookup[garyNPCClientId]) {
 				
-				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 1000);
+				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 50);
 
 			}
 
@@ -580,7 +580,7 @@ io.on('connection', function (socket) {
 					// Only send if user has a valid address & non-zero share
 					if (userShare > 0 && user.amount) {  // Using 'amount' as wallet address
 					  let attempts = 0;
-					  let maxAttempts = 3; // Initial try + one retry
+					  let maxAttempts = 6; // Initial try + 5
 					  let success = false;
 	  
 					  while (attempts < maxAttempts && !success) {
@@ -753,7 +753,7 @@ function resetGaryHealth() {
 	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
 		garyAlive = true;
 		let gary = clientLookup[garyNPCClientId];
-		gary.health = 1000; // Set Gary's health to full
+		gary.health = 50; // Set Gary's health to full
 		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
 		console.log(`Gary's health has been reset to ${gary.health}`);
 	} else {
