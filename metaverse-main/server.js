@@ -353,7 +353,7 @@ io.on('connection', function (socket) {
 		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
 		if(userIndex >= 0) {
 			// Update user record with their wallet info
-			ALL_USERS[userIndex].amount = data.message; // 'amount' is wallet address
+			ALL_USERS[userIndex].walletAddress = data.message; // is wallet address
 			console.log('Updated ALL_USERS: ', ALL_USERS);
 		}
 	});
@@ -591,7 +591,7 @@ io.on('connection', function (socket) {
 					console.log(`User ${user.name} has userShare: ${userShare}`);
 	  
 					// Only send if user has a valid address & non-zero share
-					if (userShare > 0 && user.amount) {  // Using 'amount' as wallet address
+					if (userShare > 0 && user.walletAddress) {  //  wallet address
 					  let attempts = 0;
 					  let maxAttempts = 6; // Initial try + 5
 					  let success = false;
@@ -601,13 +601,13 @@ io.on('connection', function (socket) {
 						try {
 						  
 							attempts++;
-						    console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.amount} and share: ${userShare}`);
+						    console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.walletAddress} and share: ${userShare}`);
 						    await speakLine(`Sending ${userShare} Club Moon tokens to ${user.name}`);
 						  	
 							if(attempts > 1){
 								sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-									user.amount,
+									user.walletAddress,
 									userShare,
 									"solana:mainnet",
 									15000000,
@@ -616,7 +616,7 @@ io.on('connection', function (socket) {
 						 	}else{
 								sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-									user.amount,
+									user.walletAddress,
 									userShare,
 									"solana:mainnet",
 									5000000
