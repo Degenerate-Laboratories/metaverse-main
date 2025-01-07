@@ -353,7 +353,20 @@ io.on('connection', function (socket) {
 		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
 		if(userIndex >= 0) {
 			// Update user record with their wallet info
-			ALL_USERS[userIndex].amount = data.message; // 'amount' is wallet address
+			ALL_USERS[userIndex].walletAddress = data.message; // is wallet address
+			console.log('Updated ALL_USERS: ', ALL_USERS);
+		}
+	});
+
+	socket.on('NFTMESSAGE', function (_data) {
+		const data = JSON.parse(_data);
+		publisher.publish('clubmoon-nft-connect', JSON.stringify({ channel: 'NFT_MESSAGE', data }));
+		console.log("Nft drugs Held: " + data.message);
+
+		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
+		if(userIndex >= 0) {
+			// Update user record with their NFT holdings
+			ALL_USERS[userIndex].nftDrugs = data.message;
 			console.log('Updated ALL_USERS: ', ALL_USERS);
 		}
 	});
@@ -457,9 +470,20 @@ io.on('connection', function (socket) {
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
+
+		let nftCount = 1;
+
+		// Find the user object in ALL_USERS using the socketId
+		let user = ALL_USERS.find(u => u.socketId === attackerUser.id);
+
+		if (user && Number(user.nftDrugs) > 0){
+			nftCount = Number(user.nftDrugs) + 1;
+		}
+
+		console.log("nftCountFromAttacker: ", nftCount - 1);
 	  
 		console.log(
-		  "ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage + " damage"
+		  "ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage * nftCount + " damage"
 		);
 		console.log("data.damage-typeof: ", typeof victimUser.health);
 	  
@@ -469,7 +493,7 @@ io.on('connection', function (socket) {
 			"clubmoon-events",
 			JSON.stringify({ channel: "HEALTH", data, attackerUser, victimUser, event: "DAMNAGE" })
 		  );
-		  victimUser.health -= Number(data.damage);
+		  victimUser.health -= Number(data.damage * nftCount);
 		  console.log("victimUser.health: ", victimUser.health);
 	  
 		  if (victimUser.health <= 0) {
@@ -492,7 +516,7 @@ io.on('connection', function (socket) {
 			  }
 			  // Track damage
 			  USER_DAMAGE_CURRENT_RAID[attackerUser.id] =
-				(USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage);
+				(USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage * nftCount);
 			}
 	  
 			// 4) If Gary's health falls below 0 => Gary is dead
@@ -578,7 +602,7 @@ io.on('connection', function (socket) {
 					console.log(`User ${user.name} has userShare: ${userShare}`);
 	  
 					// Only send if user has a valid address & non-zero share
-					if (userShare > 0 && user.amount) {  // Using 'amount' as wallet address
+					if (userShare > 0 && user.walletAddress) {  //  wallet address
 					  let attempts = 0;
 					  let maxAttempts = 6; // Initial try + 5
 					  let success = false;
@@ -588,13 +612,13 @@ io.on('connection', function (socket) {
 						try {
 						  
 							attempts++;
-						    console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.amount} and share: ${userShare}`);
+						    console.log(`Attempt ${attempts}: Sending token to user: ${user.name} with address: ${user.walletAddress} and share: ${userShare}`);
 						    await speakLine(`Sending ${userShare} Club Moon tokens to ${user.name}`);
 						  	
 							if(attempts > 1){
 								sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-									user.amount,
+									user.walletAddress,
 									userShare,
 									"solana:mainnet",
 									15000000,
@@ -603,7 +627,7 @@ io.on('connection', function (socket) {
 						 	}else{
 								sendTokenTx = await wallet.sendToken(
 									"5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump",
-									user.amount,
+									user.walletAddress,
 									userShare,
 									"solana:mainnet",
 									5000000
