@@ -483,7 +483,7 @@ io.on('connection', function (socket) {
 		console.log("nftCountFromAttacker: ", nftCount - 1);
 	  
 		console.log(
-		  "ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage + " damage"
+		  "ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage * nftCount + " damage"
 		);
 		console.log("data.damage-typeof: ", typeof victimUser.health);
 	  
