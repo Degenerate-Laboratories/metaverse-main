@@ -467,6 +467,13 @@ io.on('connection', function (socket) {
 
 	socket.on('ATTACK', async function (_data) {
 		// 1) Parse data
+		let nftCount = 1;
+		if(ALL_USERS[attackerUser.id].nftDrugs > 0){
+			nftCount = ALL_USERS[attackerUser.id].nftDrugs + 1;
+		}
+
+		console.log("nftCountFromAttacker: ", nftCount - 1);
+
 		const data = JSON.parse(_data);
 		let attackerUser = clientLookup[data.attackerId];
 		let victimUser = clientLookup[data.victimId];
@@ -482,7 +489,7 @@ io.on('connection', function (socket) {
 			"clubmoon-events",
 			JSON.stringify({ channel: "HEALTH", data, attackerUser, victimUser, event: "DAMNAGE" })
 		  );
-		  victimUser.health -= Number(data.damage);
+		  victimUser.health -= Number(data.damage * nftCount);
 		  console.log("victimUser.health: ", victimUser.health);
 	  
 		  if (victimUser.health <= 0) {
@@ -505,7 +512,7 @@ io.on('connection', function (socket) {
 			  }
 			  // Track damage
 			  USER_DAMAGE_CURRENT_RAID[attackerUser.id] =
-				(USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage);
+				(USER_DAMAGE_CURRENT_RAID[attackerUser.id] || 0) + Number(data.damage * nftCount);
 			}
 	  
 			// 4) If Gary's health falls below 0 => Gary is dead
