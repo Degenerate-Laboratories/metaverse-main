@@ -472,8 +472,12 @@ io.on('connection', function (socket) {
 		let victimUser = clientLookup[data.victimId];
 
 		let nftCount = 1;
-		if(ALL_USERS[attackerUser.id].nftDrugs > 0){
-			nftCount = ALL_USERS[attackerUser.id].nftDrugs + 1;
+
+		// Find the user object in ALL_USERS using the socketId
+		let user = ALL_USERS.find(u => u.socketId === attackerUser.id);
+
+		if (user && user.nftDrugs > 0){
+			nftCount = user.nftDrugs + 1;
 		}
 
 		console.log("nftCountFromAttacker: ", nftCount - 1);
