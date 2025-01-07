@@ -467,16 +467,16 @@ io.on('connection', function (socket) {
 
 	socket.on('ATTACK', async function (_data) {
 		// 1) Parse data
+		const data = JSON.parse(_data);
+		let attackerUser = clientLookup[data.attackerId];
+		let victimUser = clientLookup[data.victimId];
+
 		let nftCount = 1;
 		if(ALL_USERS[attackerUser.id].nftDrugs > 0){
 			nftCount = ALL_USERS[attackerUser.id].nftDrugs + 1;
 		}
 
 		console.log("nftCountFromAttacker: ", nftCount - 1);
-
-		const data = JSON.parse(_data);
-		let attackerUser = clientLookup[data.attackerId];
-		let victimUser = clientLookup[data.victimId];
 	  
 		console.log(
 		  "ATTACK EVENT || " + attackerUser.name + " attacked " + victimUser.name + " for " + data.damage + " damage"
