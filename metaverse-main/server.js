@@ -358,6 +358,19 @@ io.on('connection', function (socket) {
 		}
 	});
 
+	socket.on('NFTMESSAGE', function (_data) {
+		const data = JSON.parse(_data);
+		publisher.publish('clubmoon-nft-connect', JSON.stringify({ channel: 'NFT_MESSAGE', data }));
+		console.log("Nft drugs Held: " + data.message);
+
+		const userIndex = ALL_USERS.findIndex((u) => u.socketId === data.id);
+		if(userIndex >= 0) {
+			// Update user record with their NFT holdings
+			ALL_USERS[userIndex].nftDrugs = data.message;
+			console.log('Updated ALL_USERS: ', ALL_USERS);
+		}
+	});
+
 	socket.on('RESET_GARY_HEALTH', function (_data) {
 		resetGaryHealth();
 	});
