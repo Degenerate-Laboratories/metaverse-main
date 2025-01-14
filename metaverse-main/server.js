@@ -38,7 +38,7 @@ let FEATURE_FLAGS = {
 let ALL_USERS = [];
 let GARY_RAID_PARTY = [];
 let IS_PAYED_OUT = false; // tracks whether payouts have occurred for the current raid
-let REWARDS_TOTAL = 100000; // total reward to distribute among participants
+let REWARDS_TOTAL = 10000; // total reward to distribute among participants
 
 // Store Gary deaths history
 let GARRY_DEATHS = [];
@@ -239,7 +239,7 @@ io.on('connection', function (socket) {
 			muteUsers: [],
 			muteAll: false,
 			isMute: true,
-			health: data.model == -1 ? 1000 : 100
+			health: data.model == -1 ? 200 : 100
 		};
 
 		if (data.model == -1) {
@@ -441,7 +441,7 @@ io.on('connection', function (socket) {
 			gameData.fightStarted = _data;
 			if (_data != "True" && garyNPCClientId && clientLookup[garyNPCClientId]) {
 				
-				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 1000);
+				sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, 200);
 
 			}
 
@@ -776,8 +776,20 @@ function gameloop() {
 function resetGaryHealth() {
 	if (garyNPCClientId && clientLookup[garyNPCClientId]) {
 		garyAlive = true;
+
+		// Reset the raid-related variables
+		IS_PAYED_OUT = false;
+		GARY_RAID_PARTY = [];
+		USER_DAMAGE_CURRENT_RAID = {};
+
 		let gary = clientLookup[garyNPCClientId];
-		gary.health = 1000; // Set Gary's health to full
+		gary.health = 200; // Set Gary's health to full
+
+		// Reset any death flags if necessary
+		if (gary.isDead) {
+			gary.isDead = false;
+		}
+
 		sockets[garyNPCClientId].emit('UPDATE_HEALTH', garyNPCClientId, gary.health);
 		console.log(`Gary's health has been reset to ${gary.health}`);
 	} else {
