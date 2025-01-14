@@ -54,7 +54,7 @@ let test_onStart = async function(){
 	try {
 		let address = await wallet.getAddress();
 		console.log("Address:", address);
-		let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "3zHujEeVSYCkrQUCfZAEG6dL6SEtRrvfXCAB33hdUL7n", 1, "solana:mainnet", 5000000)
+		let sendTokenTx = await wallet.sendToken("5gVSqhk41VA8U6U4Pvux6MSxFWqgptm3w58X9UTGpump", "3zHujEeVSYCkrQUCfZAEG6dL6SEtRrvfXCAB33hdUL7n", 1, "solana:mainnet", 2000000)
 		console.log("sendTokenTx:", sendTokenTx);
 	} catch(e) {
 		console.error(e);
@@ -621,7 +621,7 @@ io.on('connection', function (socket) {
 									user.walletAddress,
 									userShare,
 									"solana:mainnet",
-									15000000,
+									5000000,
 									"https://rpc.magicblock.app/mainnet"
 								);
 						 	}else{
@@ -630,7 +630,7 @@ io.on('connection', function (socket) {
 									user.walletAddress,
 									userShare,
 									"solana:mainnet",
-									5000000
+									2000000
 								);
 							}
 						  console.log("Sent Token Tx:", sendTokenTx);
