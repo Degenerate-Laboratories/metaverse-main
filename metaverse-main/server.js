@@ -38,7 +38,7 @@ let FEATURE_FLAGS = {
 let ALL_USERS = [];
 let GARY_RAID_PARTY = [];
 let IS_PAYED_OUT = false; // tracks whether payouts have occurred for the current raid
-let REWARDS_TOTAL = 300000; // total reward to distribute among participants
+let REWARDS_TOTAL = 1000000; // total reward to distribute among participants
 
 // Store Gary deaths history
 let GARRY_DEATHS = [];
