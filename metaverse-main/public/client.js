@@ -88,12 +88,7 @@ socket.on('FIGHT_STARTED', function (hasStarted) {
 	
 	    var current_vehicle = id+':'+name+':'+model+':'+posX+':'+posY+':'+posZ+':'+currentState+':'+myClientId;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnSpawnVehicle', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	
@@ -102,24 +97,14 @@ socket.on('FIGHT_STARTED', function (hasStarted) {
 	
 	    var current_vehicle = id+':'+posX+':'+posY+':'+posZ+':'+rotation+':'+spherePosX+':'+spherePosY+':'+spherePosZ;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateVehiclePosAndRot', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	socket.on('UPDATE_VEHICLE_STATE', function( myClientId,id,currentState) {
 	
 	    var current_vehicle = myClientId+':'+id+':'+currentState;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateVehicleState', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	
@@ -127,39 +112,16 @@ socket.on('FIGHT_STARTED', function (hasStarted) {
 	
 	    var current_vehicle = id+':'+acceleration;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateVehicleAcceleration', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	
-	
-	socket.on('UPDATE_VEHICLE_ACCELERATION', function( id,acceleration) {
-	
-	    var current_vehicle = id+':'+acceleration;
-		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateVehicleAcceleration', current_vehicle);
-		
-		}
-		
-	});//END_SOCKET.ON
 	
 	socket.on('UPDATE_OFFSPIN', function( id,offSpin) {
 	
 	    var current_vehicle = id+':'+offSpin;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateVehicleOffSpin', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	
@@ -167,12 +129,7 @@ socket.on('FIGHT_STARTED', function (hasStarted) {
 	
 	    var current_vehicle = id+':'+wheels_rot;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateFrontWheelsRotation', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	
@@ -180,12 +137,7 @@ socket.on('FIGHT_STARTED', function (hasStarted) {
 	
 	    var current_vehicle = id+':'+h+':'+v;
 		
-		if(window.unityInstance!=null)
-		{
-	   
-		  window.unityInstance.SendMessage ('NetworkManager', 'OnUpdateVehicleInputs', current_vehicle);
-		
-		}
+		// Skip sending vehicle messages - vehicles disabled
 		
 	});//END_SOCKET.ON
 	
